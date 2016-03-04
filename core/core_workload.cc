@@ -73,6 +73,12 @@ const string CoreWorkload::INSERT_START_DEFAULT = "0";
 const string CoreWorkload::RECORD_COUNT_PROPERTY = "recordcount";
 const string CoreWorkload::OPERATION_COUNT_PROPERTY = "operationcount";
 
+const string CoreWorkload::MAX_KEY_NUMBER_PROPERTY = "keymaxnumber";
+const string CoreWorkload::MAX_KEY_NUMBER_DEFAULT = "3";
+
+const string CoreWorkload::MAX_KEY_VALUE_PROPERTY = "keymaxvalue";
+const string CoreWorkload::MAX_KEY_VALUE_DEFAULT = "100";
+
 void CoreWorkload::Init(const utils::Properties &p) {
   table_name_ = p.GetProperty(TABLENAME_PROPERTY,TABLENAME_DEFAULT);
   
@@ -92,6 +98,8 @@ void CoreWorkload::Init(const utils::Properties &p) {
       READMODIFYWRITE_PROPORTION_PROPERTY, READMODIFYWRITE_PROPORTION_DEFAULT));
   
   record_count_ = std::stoi(p.GetProperty(RECORD_COUNT_PROPERTY));
+  max_key_value_ = std::stoi(p.GetProperty(MAX_KEY_VALUE_PROPERTY, MAX_KEY_VALUE_DEFAULT));
+  max_key_count_ = std::stoi(p.GetProperty(MAX_KEY_NUMBER_PROPERTY, MAX_KEY_NUMBER_DEFAULT));
   std::string request_dist = p.GetProperty(REQUEST_DISTRIBUTION_PROPERTY,
                                            REQUEST_DISTRIBUTION_DEFAULT);
   int max_scan_len = std::stoi(p.GetProperty(MAX_SCAN_LENGTH_PROPERTY,
@@ -129,11 +137,14 @@ void CoreWorkload::Init(const utils::Properties &p) {
   if (readmodifywrite_proportion > 0) {
     op_chooser_.AddValue(READMODIFYWRITE, readmodifywrite_proportion);
   }
+  //changed to max_key_value from record_count
+  insert_key_sequence_.Set(max_key_value_);
   
-  insert_key_sequence_.Set(record_count_);
-  
+  keynum_chooser_ = new UniformGenerator(1, max_key_count_);
+
   if (request_dist == "uniform") {
-    key_chooser_ = new UniformGenerator(0, record_count_ - 1);
+	  //changed to max_key_value from record_count
+    key_chooser_ = new UniformGenerator(0, max_key_value_ - 1);
     
   } else if (request_dist == "zipfian") {
     // If the number of keys changes, we don't want to change popular keys.

@@ -11,6 +11,7 @@
 
 #include <vector>
 #include <string>
+#include <iostream>
 #include "db.h"
 #include "properties.h"
 #include "generator.h"
@@ -134,6 +135,15 @@ class CoreWorkload {
   static const std::string OPERATION_COUNT_PROPERTY;
 
   ///
+  /// The name of the property for max number of keys in one transaction
+  /// and max key value
+  ///
+  static const std::string MAX_KEY_NUMBER_PROPERTY;
+  static const std::string MAX_KEY_NUMBER_DEFAULT;
+  static const std::string MAX_KEY_VALUE_PROPERTY;
+  static const std::string MAX_KEY_VALUE_DEFAULT;
+
+  ///
   /// Initialize the scenario.
   /// Called once, in the main client thread, before any operations are started.
   ///
@@ -145,6 +155,8 @@ class CoreWorkload {
   virtual std::string NextTable() { return table_name_; }
   virtual std::string NextSequenceKey(); /// Used for loading data
   virtual std::string NextTransactionKey(); /// Used for transactions
+  virtual std::vector<std::string> NextTransactionKeys();
+  virtual std::vector<ycsbc::DB::KVPair> NextTransactionKVs();
   virtual Operation NextOperation() { return op_chooser_.Next(); }
   virtual std::string NextFieldName();
   virtual size_t NextScanLength() { return scan_len_chooser_->Next(); }
@@ -154,9 +166,9 @@ class CoreWorkload {
 
   CoreWorkload() :
       field_count_(0), read_all_fields_(false), write_all_fields_(false),
-      field_len_generator_(NULL), key_generator_(NULL), key_chooser_(NULL),
+      field_len_generator_(NULL), key_generator_(NULL), key_chooser_(NULL),keynum_chooser_(NULL),
       field_chooser_(NULL), scan_len_chooser_(NULL), insert_key_sequence_(3),
-      ordered_inserts_(true), record_count_(0) {
+      ordered_inserts_(true), record_count_(0), max_key_count_(3), max_key_value_(100) {
   }
   
   virtual ~CoreWorkload() {
@@ -179,11 +191,14 @@ class CoreWorkload {
   Generator<uint64_t> *key_generator_;
   DiscreteGenerator<Operation> op_chooser_;
   Generator<uint64_t> *key_chooser_;
+  Generator<uint64_t> *keynum_chooser_;
   Generator<uint64_t> *field_chooser_;
   Generator<uint64_t> *scan_len_chooser_;
   CounterGenerator insert_key_sequence_;
   bool ordered_inserts_;
   size_t record_count_;
+  size_t max_key_count_;
+  size_t max_key_value_;
 };
 
 inline std::string CoreWorkload::NextSequenceKey() {
@@ -208,6 +223,23 @@ inline std::string CoreWorkload::BuildKeyName(uint64_t key_num) {
 
 inline std::string CoreWorkload::NextFieldName() {
   return std::string("field").append(std::to_string(field_chooser_->Next()));
+}
+
+inline std::vector<std::string> CoreWorkload::NextTransactionKeys() {
+	std::vector<std::string> keys;
+	size_t num = keynum_chooser_->Next();
+	for(size_t i=1; i<=num; ++i){
+		keys.push_back(NextTransactionKey());
+	}
+	return keys;
+}
+inline std::vector<ycsbc::DB::KVPair> CoreWorkload::NextTransactionKVs(){
+	std::vector<ycsbc::DB::KVPair> result;
+	size_t num = keynum_chooser_->Next();
+	for(size_t i=1; i<=num; ++i){
+		result.push_back(ycsbc::DB::KVPair(NextTransactionKey(),std::string(field_len_generator_->Next(), utils::RandomPrintChar())));
+	}
+	return result;
 }
   
 } // ycsbc
