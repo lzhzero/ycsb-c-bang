@@ -51,6 +51,12 @@ inline bool Client::DoInsert() {
 	if(isKV){
 		assert(dtranx_db_ != NULL);
 		std::vector<DB::KVPair> kvs = workload_.NextTransactionKVs();
+		/*
+		for(auto it= kvs.begin(); it!= kvs.end(); ++it){
+			cout<<it->first<<endl;
+		}
+		return 0;
+		*/
 		return dtranx_db_->Insert(kvs) == DB::kOK;
 	}
 	assert(db_ != NULL);
@@ -89,7 +95,13 @@ inline int Client::TransactionRead() {
 	if(isKV){
 		assert(dtranx_db_ != NULL);
 		std::vector<std::string> keys = workload_.NextTransactionKeys();
-		return dtranx_db_->Read(keys) == DB::kOK;
+		/*
+		for(auto it= keys.begin(); it!= keys.end(); ++it){
+			cout<<*it<<endl;
+		}
+		return 0;
+		*/
+		return dtranx_db_->Read(keys);
 	}
 	assert(db_ != NULL);
 	const std::string &table = workload_.NextTable();
@@ -108,8 +120,19 @@ inline int Client::TransactionReadModifyWrite() {
 	if(isKV){
 		assert(dtranx_db_ != NULL);
 		std::vector<std::string> keys = workload_.NextTransactionKeys();
+		/*
+		for(auto it= keys.begin(); it!= keys.end(); ++it){
+			cout<<*it<<endl;
+		}
+		*/
 		std::vector<DB::KVPair> kvs = workload_.NextTransactionKVs();
-		return dtranx_db_->Update(keys, kvs) == DB::kOK;
+		/*
+		for(auto it= kvs.begin(); it!= kvs.end(); ++it){
+			cout<<it->first<<endl;
+		}
+		return 0;
+		*/
+		return dtranx_db_->Update(keys, kvs);
 	}
 	assert(db_ != NULL);
 	const std::string &table = workload_.NextTable();
@@ -152,7 +175,13 @@ inline int Client::TransactionUpdate() {
 	if(isKV){
 		assert(dtranx_db_ != NULL);
 		std::vector<DB::KVPair> kvs = workload_.NextTransactionKVs();
-		return dtranx_db_->Write(kvs) == DB::kOK;
+		/*
+		for(auto it= kvs.begin(); it!= kvs.end(); ++it){
+			cout<<it->first<<endl;
+		}
+		return 0;
+		*/
+		return dtranx_db_->Write(kvs);
 	}
 	assert(db_ != NULL);
 	const std::string &table = workload_.NextTable();
@@ -170,7 +199,13 @@ inline int Client::TransactionInsert() {
 	if(isKV){
 		assert(dtranx_db_ != NULL);
 		std::vector<DB::KVPair> kvs = workload_.NextTransactionKVs();
-		return dtranx_db_->Insert(kvs) == DB::kOK;
+		/*
+		for(auto it= kvs.begin(); it!= kvs.end(); ++it){
+			cout<<it->first<<endl;
+		}
+		return 0;
+		*/
+		return dtranx_db_->Insert(kvs);
 	}
 	assert(db_ != NULL);
 	const std::string &table = workload_.NextTable();

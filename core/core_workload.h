@@ -12,6 +12,8 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <memory>
+#include <mutex>
 #include "db.h"
 #include "properties.h"
 #include "generator.h"
@@ -177,6 +179,7 @@ class CoreWorkload {
     if (key_chooser_) delete key_chooser_;
     if (field_chooser_) delete field_chooser_;
     if (scan_len_chooser_) delete scan_len_chooser_;
+    if (keynum_chooser_) delete keynum_chooser_;
   }
   
  protected:
@@ -199,6 +202,7 @@ class CoreWorkload {
   size_t record_count_;
   size_t max_key_count_;
   size_t max_key_value_;
+  std::mutex mutex;
 };
 
 inline std::string CoreWorkload::NextSequenceKey() {
@@ -216,7 +220,9 @@ inline std::string CoreWorkload::NextTransactionKey() {
 
 inline std::string CoreWorkload::BuildKeyName(uint64_t key_num) {
   if (!ordered_inserts_) {
+	  //std::cout<<"key: "<<key_num<<std::endl;
     key_num = utils::Hash(key_num);
+    //std::cout<<"key hash: "<<key_num<<std::endl;
   }
   return std::string("user").append(std::to_string(key_num));
 }
@@ -226,6 +232,7 @@ inline std::string CoreWorkload::NextFieldName() {
 }
 
 inline std::vector<std::string> CoreWorkload::NextTransactionKeys() {
+	std::unique_lock<std::mutex> lockGuard(mutex);
 	std::vector<std::string> keys;
 	size_t num = keynum_chooser_->Next();
 	for(size_t i=1; i<=num; ++i){
@@ -234,6 +241,7 @@ inline std::vector<std::string> CoreWorkload::NextTransactionKeys() {
 	return keys;
 }
 inline std::vector<ycsbc::DB::KVPair> CoreWorkload::NextTransactionKVs(){
+	std::unique_lock<std::mutex> lockGuard(mutex);
 	std::vector<ycsbc::DB::KVPair> result;
 	size_t num = keynum_chooser_->Next();
 	for(size_t i=1; i<=num; ++i){

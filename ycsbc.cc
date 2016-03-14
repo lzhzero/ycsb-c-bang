@@ -24,7 +24,8 @@ bool StrStartWith(const char *str, const char *pre);
 string ParseCommandLine(int argc, const char *argv[], utils::Properties &props);
 
 int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
-bool is_loading, bool isKV, std::string clusterFileName) {
+		//, unordered_map<std::string, DTranx::Client::Client *> clients
+bool is_loading, bool isKV, std::vector<std::string> ips, std::vector<DTranx::Client::Client*> clients) {
 	ycsbc::DtranxDB *dtranx_db = NULL;
 	if (isKV) {
 		dtranx_db = new ycsbc::DtranxDB();
@@ -33,7 +34,7 @@ bool is_loading, bool isKV, std::string clusterFileName) {
 		db->Init();
 	}
 	if (dtranx_db) {
-		dtranx_db->Init(clusterFileName);
+		dtranx_db->Init(ips, clients);
 	}
 	ycsbc::Client client(db, dtranx_db, *wl, isKV);
 	int oks = 0;
@@ -58,20 +59,38 @@ int main(const int argc, const char *argv[]) {
 	string file_name = ParseCommandLine(argc, argv, props);
 	bool isKV = props["dbname"] == "dtranx";
 
-	ycsbc::DB *db = ycsbc::DBFactory::CreateDB(props["dbname"]);
-	/*
-	 if (!db) {
-	 cout << "Unknown database name " << props["dbname"] << endl;
-	 exit(0);
-	 }
-	 */
+	std::string clusterFileName = props.GetProperty("clusterfilename", "");
+	std::vector<DTranx::Client::Client*> clients;
+	std::vector<std::string> ips;
+	if (isKV) {
+		DTranx::Util::ConfigHelper configHelper;
+		configHelper.readFile("DTranx.conf");
+		if (clusterFileName.empty()) {
+			ips.push_back(configHelper.read("SelfAddress"));
+		} else {
+			std::ifstream ipFile(clusterFileName);
+			if (!ipFile.is_open()) {
+				cout << "cannot open " << clusterFileName << endl;
+				exit(0);
+			}
+			std::string ip;
+			while (std::getline(ipFile, ip)) {
+				ips.push_back(ip);
+			}
+		}
+		std::shared_ptr<zmq::context_t> context = std::make_shared<
+						zmq::context_t>(
+						configHelper.read<DTranx::uint32>("maxIOThreads"));
+		for(auto it= ips.begin(); it!= ips.end(); ++it){
+			clients.push_back(new DTranx::Client::Client(*it, configHelper.read < std::string > ("routerFrontPort"), context));
+		}
+	}
 
+	ycsbc::DB *db = ycsbc::DBFactory::CreateDB(props["dbname"]);
 	ycsbc::CoreWorkload wl;
 	wl.Init(props);
 
 	const int num_threads = stoi(props.GetProperty("threadcount", "1"));
-
-	std::string clusterFileName = props.GetProperty("clusterfilename", "");
 
 	// Loads data
 	vector<future<int>> actual_ops;
@@ -79,7 +98,7 @@ int main(const int argc, const char *argv[]) {
 	for (int i = 0; i < num_threads; ++i) {
 		actual_ops.emplace_back(
 				async(launch::async, DelegateClient, db, &wl,
-						total_ops / num_threads, true, isKV, clusterFileName));
+						total_ops / num_threads, true, isKV, ips, clients));
 	}
 	assert((int )actual_ops.size() == num_threads);
 
@@ -98,7 +117,7 @@ int main(const int argc, const char *argv[]) {
 	for (int i = 0; i < num_threads; ++i) {
 		actual_ops.emplace_back(
 				async(launch::async, DelegateClient, db, &wl,
-						total_ops / num_threads, false, isKV, clusterFileName));
+						total_ops / num_threads, false, isKV, ips, clients));
 	}
 	assert((int )actual_ops.size() == num_threads);
 
@@ -111,6 +130,13 @@ int main(const int argc, const char *argv[]) {
 	cerr << "# Transaction throughput (KTPS)" << endl;
 	cerr << props["dbname"] << '\t' << file_name << '\t' << num_threads << '\t';
 	cerr << total_ops / duration / 1000 << endl;
+	cerr <<"total_ops: "<< total_ops<<", success: "<<sum<<", percentage: "<<1.0* sum/total_ops<< endl;
+
+	/*
+	for(auto it=clients.begin(); it != clients.end(); ++it){
+		delete it->second;
+	}
+	*/
 }
 
 string ParseCommandLine(int argc, const char *argv[],
