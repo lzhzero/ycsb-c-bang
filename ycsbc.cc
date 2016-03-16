@@ -25,7 +25,8 @@ string ParseCommandLine(int argc, const char *argv[], utils::Properties &props);
 
 int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
 		//, unordered_map<std::string, DTranx::Client::Client *> clients
-bool is_loading, bool isKV, std::vector<std::string> ips, std::vector<DTranx::Client::Client*> clients) {
+bool is_loading, bool isKV, std::vector<std::string> ips, std::vector<DTranx::Client::Client*> clients, int clientID) {
+	//clientID controls whether to store workload or not
 	ycsbc::DtranxDB *dtranx_db = NULL;
 	if (isKV) {
 		dtranx_db = new ycsbc::DtranxDB();
@@ -36,7 +37,7 @@ bool is_loading, bool isKV, std::vector<std::string> ips, std::vector<DTranx::Cl
 	if (dtranx_db) {
 		dtranx_db->Init(ips, clients);
 	}
-	ycsbc::Client client(db, dtranx_db, *wl, isKV);
+	ycsbc::Client client(db, dtranx_db, *wl, isKV, clientID);
 	int oks = 0;
 	for (int i = 0; i < num_ops; ++i) {
 		if (is_loading) {
@@ -98,7 +99,7 @@ int main(const int argc, const char *argv[]) {
 	for (int i = 0; i < num_threads; ++i) {
 		actual_ops.emplace_back(
 				async(launch::async, DelegateClient, db, &wl,
-						total_ops / num_threads, true, isKV, ips, clients));
+						total_ops / num_threads, true, isKV, ips, clients, -1));
 	}
 	assert((int )actual_ops.size() == num_threads);
 
@@ -117,7 +118,7 @@ int main(const int argc, const char *argv[]) {
 	for (int i = 0; i < num_threads; ++i) {
 		actual_ops.emplace_back(
 				async(launch::async, DelegateClient, db, &wl,
-						total_ops / num_threads, false, isKV, ips, clients));
+						total_ops / num_threads, false, isKV, ips, clients, -1));
 	}
 	assert((int )actual_ops.size() == num_threads);
 

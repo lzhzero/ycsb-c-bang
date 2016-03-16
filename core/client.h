@@ -19,8 +19,12 @@ namespace ycsbc {
 
 class Client {
  public:
-  Client(CoreWorkload &wl, bool isKV) : db_(NULL), dtranx_db_(NULL), workload_(wl), isKV(isKV) { }
-  Client(DB *db_, DtranxDB *dtranx_db_, CoreWorkload &wl, bool isKV) : db_(db_), dtranx_db_(dtranx_db_), workload_(wl), isKV(isKV) { }
+  Client(CoreWorkload &wl, bool isKV) : db_(NULL), dtranx_db_(NULL), workload_(wl), isKV(isKV), clientID(0) { }
+  Client(DB *db_, DtranxDB *dtranx_db_, CoreWorkload &wl, bool isKV, int clientID) : db_(db_), dtranx_db_(dtranx_db_), workload_(wl), isKV(isKV), clientID(clientID) {
+	  if(clientID != -1){
+		  output.open("workload"+std::to_string(clientID));
+	  }
+  }
   void InitDB(DB *db){
 	  db_ = db;
   }
@@ -31,7 +35,11 @@ class Client {
   virtual bool DoInsert();
   virtual bool DoTransaction();
   
-  virtual ~Client() { }
+  virtual ~Client() {
+	  if(clientID != -1){
+		  output.close();
+	  }
+  }
   
  protected:
   
@@ -45,6 +53,8 @@ class Client {
   DtranxDB *dtranx_db_;
   CoreWorkload &workload_;
   bool isKV;
+  int clientID;
+  std::ofstream output;
 };
 
 inline bool Client::DoInsert() {
@@ -101,7 +111,16 @@ inline int Client::TransactionRead() {
 		}
 		return 0;
 		*/
+		std::string line ="read ";
+		for(auto it= keys.begin(); it!= keys.end(); ++it){
+			line+= (*it)+" ";
+		}
+		line+="\n";
+		if(clientID != -1){
+			output<< line;
+		}
 		return dtranx_db_->Read(keys);
+		//return DB::kOK;
 	}
 	assert(db_ != NULL);
 	const std::string &table = workload_.NextTable();
@@ -120,18 +139,34 @@ inline int Client::TransactionReadModifyWrite() {
 	if(isKV){
 		assert(dtranx_db_ != NULL);
 		std::vector<std::string> keys = workload_.NextTransactionKeys();
+		std::string line ="update ";
+		for(auto it= keys.begin(); it!= keys.end(); ++it){
+			line+= (*it)+" ";
+		}
+		line+="after ";
+
 		/*
 		for(auto it= keys.begin(); it!= keys.end(); ++it){
 			cout<<*it<<endl;
 		}
 		*/
 		std::vector<DB::KVPair> kvs = workload_.NextTransactionKVs();
+
+		for(auto it= kvs.begin(); it!= kvs.end(); ++it){
+			line+= (it->first)+" ";
+			line+= (it->second)+" ";
+		}
+		line+="\n";
+		if(clientID != -1){
+			output<<line;
+		}
 		/*
 		for(auto it= kvs.begin(); it!= kvs.end(); ++it){
 			cout<<it->first<<endl;
 		}
 		return 0;
 		*/
+		//return DB::kOK;
 		return dtranx_db_->Update(keys, kvs);
 	}
 	assert(db_ != NULL);
