@@ -139,6 +139,7 @@ inline int Client::TransactionReadModifyWrite() {
 	if(isKV){
 		assert(dtranx_db_ != NULL);
 		std::vector<std::string> keys = workload_.NextTransactionKeys();
+		keys.pop_back();
 		std::string line ="update ";
 		for(auto it= keys.begin(); it!= keys.end(); ++it){
 			line+= (*it)+" ";
@@ -151,8 +152,10 @@ inline int Client::TransactionReadModifyWrite() {
 		}
 		*/
 		std::vector<DB::KVPair> kvs = workload_.NextTransactionKVs();
+		std::vector<DB::KVPair> kvs_filter;
+		kvs_filter.push_back(kvs[0]);
 
-		for(auto it= kvs.begin(); it!= kvs.end(); ++it){
+		for(auto it= kvs_filter.begin(); it!= kvs_filter.end(); ++it){
 			line+= (it->first)+" ";
 			line+= (it->second)+" ";
 		}
@@ -167,7 +170,7 @@ inline int Client::TransactionReadModifyWrite() {
 		return 0;
 		*/
 		//return DB::kOK;
-		return dtranx_db_->Update(keys, kvs);
+		return dtranx_db_->Update(keys, kvs_filter);
 	}
 	assert(db_ != NULL);
 	const std::string &table = workload_.NextTable();

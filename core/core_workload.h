@@ -162,6 +162,7 @@ class CoreWorkload {
   virtual Operation NextOperation() { return op_chooser_.Next(); }
   virtual std::string NextFieldName();
   virtual size_t NextScanLength() { return scan_len_chooser_->Next(); }
+  virtual size_t GetMaxKeyCount();
   
   bool read_all_fields() const { return read_all_fields_; }
   bool write_all_fields() const { return write_all_fields_; }
@@ -204,6 +205,10 @@ class CoreWorkload {
   size_t max_key_value_;
   std::mutex mutex;
 };
+
+inline size_t CoreWorkload::GetMaxKeyCount(){
+	return max_key_count_;
+}
 
 inline std::string CoreWorkload::NextSequenceKey() {
   uint64_t key_num = key_generator_->Next();

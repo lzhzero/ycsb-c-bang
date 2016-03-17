@@ -44,16 +44,15 @@ public:
 
 	int Read(std::vector<std::string> keys) {
 		std::lock_guard<std::mutex> lock(mutex_);
-		std::cout<<"read"<<std::endl;
 		for (auto it = keys.begin(); it != keys.end(); ++it) {
 			std::string value;
 			DTranx::Storage::Status status = clientTranx->Read(
 					const_cast<std::string&>(*it), value);
 			if (status == DTranx::Storage::Status::OK) {
-			//	cout << "read key: " << *it << " and the value is " << value
-			//			<< endl;
+				//cout << "read key: " << *it << " and the value is " << value
+				//		<< endl;
 			} else {
-			//	cout << "read key failed, abort..." << endl;
+				//cout << "read key: "<<*it<<"  failed, abort..." << endl;
 				clientTranx->Clear();
 				return DB::kErrorNoData;
 			}
@@ -61,10 +60,10 @@ public:
 		bool success = clientTranx->Commit();
 		clientTranx->Clear();
 		if (success) {
-		//	cout << "commit success" << endl;
+			//cout << "commit success" << endl;
 			return DB::kOK;
 		} else {
-		//	cout << "commit failure" << endl;
+			//cout << "commit failure" << endl;
 			return DB::kErrorConflict;
 		}
 	}
@@ -89,7 +88,6 @@ public:
 
 	int Update(std::vector<std::string> reads, std::vector<KVPair> writes) {
 		std::lock_guard<std::mutex> lock(mutex_);
-		std::cout<<"update"<<std::endl;
 		for (auto it = reads.begin(); it != reads.end(); ++it) {
 			std::string value;
 			DTranx::Storage::Status status = clientTranx->Read(
@@ -98,7 +96,7 @@ public:
 				//cout << "read key: " << *it << " and the value is " << value
 				//		<< endl;
 			} else {
-				//cout << "read key failed, abort..." << endl;
+				//cout << "read key: "<<*it<<"  failed, abort..." << endl;
 				clientTranx->Clear();
 				return DB::kErrorNoData;
 			}
@@ -106,7 +104,7 @@ public:
 		for (auto it = writes.begin(); it != writes.end(); ++it) {
 			clientTranx->Write(it->first, it->second);
 			//cout << "update write key: " << it->first << " and the value is "
-				//	<< it->second << endl;
+			//		<< it->second << endl;
 		}
 		bool success = clientTranx->Commit();
 		clientTranx->Clear();

@@ -121,6 +121,7 @@ int main(const int argc, const char *argv[]) {
 						total_ops / num_threads, false, isKV, ips, clients, -1));
 	}
 	assert((int )actual_ops.size() == num_threads);
+	total_ops = total_ops / num_threads * num_threads;
 
 	sum = 0;
 	for (auto &n : actual_ops) {
