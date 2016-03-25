@@ -5,3 +5,7 @@ Yahoo! Cloud Serving Benchmark in C++, a C++ version of YCSB (https://github.com
 
 
 pre-requisite: g++-4.9, libtbb-dev
+
+Dynamically linked libtbb-dev
+Maintained by Ning Gao
+University of Colorado Boulder

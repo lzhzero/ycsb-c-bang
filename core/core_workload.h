@@ -225,9 +225,7 @@ inline std::string CoreWorkload::NextTransactionKey() {
 
 inline std::string CoreWorkload::BuildKeyName(uint64_t key_num) {
   if (!ordered_inserts_) {
-	  //std::cout<<"key: "<<key_num<<std::endl;
     key_num = utils::Hash(key_num);
-    //std::cout<<"key hash: "<<key_num<<std::endl;
   }
   return std::string("user").append(std::to_string(key_num));
 }

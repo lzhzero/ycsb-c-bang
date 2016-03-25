@@ -23,12 +23,15 @@ void UsageMessage(const char *command);
 bool StrStartWith(const char *str, const char *pre);
 string ParseCommandLine(int argc, const char *argv[], utils::Properties &props);
 
+/*
+ * Thread function
+ * for DTranx(key value store), DB is shared among threads while DTranx Clients are shared.
+ */
 int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
-		//, unordered_map<std::string, DTranx::Client::Client *> clients
-bool is_loading, bool isKV, std::vector<std::string> ips, std::vector<DTranx::Client::Client*> clients, int clientID) {
-	//clientID controls whether to store workload or not
+bool is_loading, std::vector<std::string> ips, std::vector<DTranx::Client::Client*> clients, int clientID) {
+	//clientID controls whether to store workload or not for analysis
 	ycsbc::DtranxDB *dtranx_db = NULL;
-	if (isKV) {
+	if (clients.size() > 0) {
 		dtranx_db = new ycsbc::DtranxDB();
 	}
 	if (db) {
@@ -37,7 +40,7 @@ bool is_loading, bool isKV, std::vector<std::string> ips, std::vector<DTranx::Cl
 	if (dtranx_db) {
 		dtranx_db->Init(ips, clients);
 	}
-	ycsbc::Client client(db, dtranx_db, *wl, isKV, clientID);
+	ycsbc::Client client(db, dtranx_db, *wl, clientID);
 	int oks = 0;
 	for (int i = 0; i < num_ops; ++i) {
 		if (is_loading) {
@@ -58,12 +61,12 @@ bool is_loading, bool isKV, std::vector<std::string> ips, std::vector<DTranx::Cl
 int main(const int argc, const char *argv[]) {
 	utils::Properties props;
 	string file_name = ParseCommandLine(argc, argv, props);
-	bool isKV = props["dbname"] == "dtranx";
-
 	std::string clusterFileName = props.GetProperty("clusterfilename", "");
+
+	//create shared clients for dtranx
 	std::vector<DTranx::Client::Client*> clients;
 	std::vector<std::string> ips;
-	if (isKV) {
+	if (props["dbname"] == "dtranx") {
 		DTranx::Util::ConfigHelper configHelper;
 		configHelper.readFile("DTranx.conf");
 		if (clusterFileName.empty()) {
@@ -99,7 +102,7 @@ int main(const int argc, const char *argv[]) {
 	for (int i = 0; i < num_threads; ++i) {
 		actual_ops.emplace_back(
 				async(launch::async, DelegateClient, db, &wl,
-						total_ops / num_threads, true, isKV, ips, clients, -1));
+						total_ops / num_threads, true, ips, clients, -1));
 	}
 	assert((int )actual_ops.size() == num_threads);
 
@@ -118,7 +121,7 @@ int main(const int argc, const char *argv[]) {
 	for (int i = 0; i < num_threads; ++i) {
 		actual_ops.emplace_back(
 				async(launch::async, DelegateClient, db, &wl,
-						total_ops / num_threads, false, isKV, ips, clients, -1));
+						total_ops / num_threads, false, ips, clients, -1));
 	}
 	assert((int )actual_ops.size() == num_threads);
 	total_ops = total_ops / num_threads * num_threads;
@@ -131,7 +134,7 @@ int main(const int argc, const char *argv[]) {
 	double duration = timer.End();
 	cerr << "# Transaction throughput (KTPS)" << endl;
 	cerr << props["dbname"] << '\t' << file_name << '\t' << num_threads << '\t';
-	cerr << total_ops / duration / 1000 << endl;
+	cerr << sum / duration / 1000 << endl;
 	cerr <<"total_ops: "<< total_ops<<", success: "<<sum<<", percentage: "<<1.0* sum/total_ops<< endl;
 
 	/*
