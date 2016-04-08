@@ -79,6 +79,9 @@ const string CoreWorkload::MAX_KEY_NUMBER_DEFAULT = "3";
 const string CoreWorkload::MAX_KEY_VALUE_PROPERTY = "keymaxvalue";
 const string CoreWorkload::MAX_KEY_VALUE_DEFAULT = "100";
 
+const string CoreWorkload::IS_SNAPSHOT_PROPERTY = "snapshot";
+const string CoreWorkload::IS_SNAPSHOT_DEFAULT = "0";
+
 void CoreWorkload::Init(const utils::Properties &p) {
   table_name_ = p.GetProperty(TABLENAME_PROPERTY,TABLENAME_DEFAULT);
   
@@ -173,6 +176,8 @@ void CoreWorkload::Init(const utils::Properties &p) {
     throw utils::Exception("Distribution not allowed for scan length: " +
         scan_len_dist);
   }
+
+  isSnapshot = (0 != std::stoi(p.GetProperty(IS_SNAPSHOT_PROPERTY, IS_SNAPSHOT_DEFAULT)));
 }
 
 ycsbc::Generator<uint64_t> *CoreWorkload::GetFieldLenGenerator(

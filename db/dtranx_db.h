@@ -11,7 +11,6 @@
 #include <iostream>
 #include <fstream>
 #include "DTranx/Client/ClientTranx.h"
-#include "DTranx/Util/ConfigHelper.h"
 
 namespace ycsbc {
 
@@ -48,6 +47,27 @@ public:
 			std::string value;
 			DTranx::Storage::Status status = clientTranx->Read(
 					const_cast<std::string&>(*it), value);
+			if (status == DTranx::Storage::Status::OK) {
+			} else {
+				clientTranx->Clear();
+				return DB::kErrorNoData;
+			}
+		}
+		bool success = clientTranx->Commit();
+		clientTranx->Clear();
+		if (success) {
+			return DB::kOK;
+		} else {
+			return DB::kErrorConflict;
+		}
+	}
+
+	int ReadSnapshot(std::vector<std::string> keys) {
+		std::lock_guard<std::mutex> lock(mutex_);
+		for (auto it = keys.begin(); it != keys.end(); ++it) {
+			std::string value;
+			DTranx::Storage::Status status = clientTranx->Read(
+					const_cast<std::string&>(*it), value, true);
 			if (status == DTranx::Storage::Status::OK) {
 			} else {
 				clientTranx->Clear();

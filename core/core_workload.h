@@ -146,6 +146,12 @@ class CoreWorkload {
   static const std::string MAX_KEY_VALUE_DEFAULT;
 
   ///
+  /// the name of the property whether transactions are snapshot or normal ones
+  ///
+  static const std::string IS_SNAPSHOT_PROPERTY;
+  static const std::string IS_SNAPSHOT_DEFAULT;
+
+  ///
   /// Initialize the scenario.
   /// Called once, in the main client thread, before any operations are started.
   ///
@@ -163,6 +169,9 @@ class CoreWorkload {
   virtual std::string NextFieldName();
   virtual size_t NextScanLength() { return scan_len_chooser_->Next(); }
   virtual size_t GetMaxKeyCount();
+  virtual bool IsSnapshot(){
+	  return isSnapshot;
+  }
   
   bool read_all_fields() const { return read_all_fields_; }
   bool write_all_fields() const { return write_all_fields_; }
@@ -203,6 +212,7 @@ class CoreWorkload {
   size_t record_count_;
   size_t max_key_count_;
   size_t max_key_value_;
+  bool isSnapshot;
   std::mutex mutex;
 };
 

@@ -49,6 +49,7 @@ public:
 protected:
 
 	virtual int TransactionRead();
+	virtual int TransactionSnapshotRead();
 	virtual int TransactionReadModifyWrite();
 	virtual int TransactionScan();
 	virtual int TransactionUpdate();
@@ -75,24 +76,28 @@ inline bool Client::DoInsert() {
 
 inline bool Client::DoTransaction() {
 	int status = -1;
-	switch (workload_.NextOperation()) {
-	case READ:
-		status = TransactionRead();
-		break;
-	case UPDATE:
-		status = TransactionUpdate();
-		break;
-	case INSERT:
-		status = TransactionInsert();
-		break;
-	case SCAN:
-		status = TransactionScan();
-		break;
-	case READMODIFYWRITE:
-		status = TransactionReadModifyWrite();
-		break;
-	default:
-		throw utils::Exception("Operation request is not recognized!");
+	if (workload_.IsSnapshot()) {
+		status = TransactionSnapshotRead();
+	} else {
+		switch (workload_.NextOperation()) {
+		case READ:
+			status = TransactionRead();
+			break;
+		case UPDATE:
+			status = TransactionUpdate();
+			break;
+		case INSERT:
+			status = TransactionInsert();
+			break;
+		case SCAN:
+			status = TransactionScan();
+			break;
+		case READMODIFYWRITE:
+			status = TransactionReadModifyWrite();
+			break;
+		default:
+			throw utils::Exception("Operation request is not recognized!");
+		}
 	}
 	assert(status >= 0);
 	return (status == DB::kOK);
@@ -123,6 +128,19 @@ inline int Client::TransactionRead() {
 	} else {
 		return db_->Read(table, key, NULL, result);
 	}
+}
+inline int Client::TransactionSnapshotRead() {
+	assert(dtranx_db_ != NULL);
+	std::vector<std::string> keys = workload_.NextTransactionKeys();
+	std::string line = "snapshot read ";
+	for (auto it = keys.begin(); it != keys.end(); ++it) {
+		line += (*it) + " ";
+	}
+	line += "\n";
+	if (clientID != -1) {
+		output << line;
+	}
+	return dtranx_db_->ReadSnapshot(keys);
 }
 
 inline int Client::TransactionReadModifyWrite() {
