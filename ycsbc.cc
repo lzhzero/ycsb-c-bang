@@ -93,6 +93,19 @@ int main(const int argc, const char *argv[]) {
 	ycsbc::DB *db = ycsbc::DBFactory::CreateDB(props["dbname"]);
 	ycsbc::CoreWorkload wl;
 	wl.Init(props);
+	if(props.GetProperty("genwork", "0") == "1"){
+		std::ofstream workFile("genwork");
+		if (!workFile.is_open()) {
+			cout << "cannot open " << "genwork" << endl;
+			exit(0);
+		}
+		int total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
+		for(int i=0; i< total_ops; i++){
+			std::string key = wl.NextTransactionKey();
+			workFile << key<< endl;
+		}
+		exit(0);
+	}
 
 	const int num_threads = stoi(props.GetProperty("threadcount", "1"));
 
@@ -157,6 +170,14 @@ string ParseCommandLine(int argc, const char *argv[],
 			}
 			props.SetProperty("threadcount", argv[argindex]);
 			argindex++;
+		}  else if (strcmp(argv[argindex], "-genwork") == 0) {
+			argindex++;
+			if (argindex >= argc) {
+				UsageMessage(argv[0]);
+				exit(0);
+			}
+			props.SetProperty("genwork", argv[argindex]);
+			argindex++;
 		} else if (strcmp(argv[argindex], "-db") == 0) {
 			argindex++;
 			if (argindex >= argc) {
@@ -206,6 +227,7 @@ string ParseCommandLine(int argc, const char *argv[],
 void UsageMessage(const char *command) {
 	cout << "Usage: " << command << " [options]" << endl;
 	cout << "Options:" << endl;
+	cout << "  -genwork n: if n equals 1, generate keys to a file named genwork.data (default: 0)" << endl;
 	cout << "  -threads n: execute using n threads (default: 1)" << endl;
 	cout << "  -db dbname: specify the name of the DB to use (default: basic)"
 			<< endl;

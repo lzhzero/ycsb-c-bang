@@ -50,6 +50,7 @@ public:
 			if (status == DTranx::Storage::Status::OK) {
 			} else {
 				clientTranx->Clear();
+				std::cout<<"reading "<<(*it)<<" failure"<<std::endl;
 				return DB::kErrorNoData;
 			}
 		}
@@ -71,6 +72,7 @@ public:
 			if (status == DTranx::Storage::Status::OK) {
 			} else {
 				clientTranx->Clear();
+				std::cout<<"reading "<<(*it)<<" failure"<<std::endl;
 				return DB::kErrorNoData;
 			}
 		}
