@@ -152,6 +152,12 @@ class CoreWorkload {
   static const std::string IS_SNAPSHOT_DEFAULT;
 
   ///
+  /// the name of the property whether key is from a random generator("none") or a file
+  ///
+  static const std::string KEY_GENERATOR_PROPERTY;
+  static const std::string KEY_GENERATOR_DEFAULT;
+
+  ///
   /// Initialize the scenario.
   /// Called once, in the main client thread, before any operations are started.
   ///
@@ -190,6 +196,9 @@ class CoreWorkload {
     if (field_chooser_) delete field_chooser_;
     if (scan_len_chooser_) delete scan_len_chooser_;
     if (keynum_chooser_) delete keynum_chooser_;
+    if (key_generator != KEY_GENERATOR_DEFAULT) {
+    	keyFile.close();
+    }
   }
   
  protected:
@@ -213,6 +222,8 @@ class CoreWorkload {
   size_t max_key_count_;
   size_t max_key_value_;
   bool isSnapshot;
+  std::string key_generator;
+  std::ifstream keyFile;
   std::mutex mutex;
 };
 
@@ -226,6 +237,11 @@ inline std::string CoreWorkload::NextSequenceKey() {
 }
 
 inline std::string CoreWorkload::NextTransactionKey() {
+	if (key_generator != KEY_GENERATOR_DEFAULT) {
+		std::string key;
+		std::getline(keyFile, key);
+		return key;
+	}
   uint64_t key_num;
   do {
     key_num = key_chooser_->Next();
