@@ -25,7 +25,8 @@ class ScrambledZipfianGenerator : public Generator<uint64_t> {
       generator_(min, max, zipfian_const) { }
   
   ScrambledZipfianGenerator(uint64_t num_items) :
-      ScrambledZipfianGenerator(0, num_items - 1) { }
+	  base_(0), num_items_(num_items),
+	        generator_(0, num_items -1 , ZipfianGenerator::kZipfianConst) { }
   
   uint64_t Next();
   uint64_t Last() { return last_; }

@@ -18,7 +18,7 @@ namespace ycsbc {
 
 class ZipfianGenerator : public Generator<uint64_t> {
  public:
-  constexpr static const double kZipfianConst = 0.99;
+  constexpr static double kZipfianConst = 0.99;
   static const uint64_t kMaxNumItems = (UINT64_MAX >> 24);
   
   ZipfianGenerator(uint64_t min, uint64_t max,
@@ -35,7 +35,16 @@ class ZipfianGenerator : public Generator<uint64_t> {
   }
   
   ZipfianGenerator(uint64_t num_items) :
-      ZipfianGenerator(0, num_items - 1, kZipfianConst) { }
+	  num_items_(num_items), base_(0), theta_(kZipfianConst),
+	        zeta_n_(0), n_for_zeta_(0) {
+	    assert(num_items_ >= 2 && num_items_ < kMaxNumItems);
+	    zeta_2_ = Zeta(2, theta_);
+	    alpha_ = 1.0 / (1.0 - theta_);
+	    RaiseZeta(num_items_);
+	    eta_ = Eta();
+
+	    Next();
+  }
   
   uint64_t Next(uint64_t num_items);
   

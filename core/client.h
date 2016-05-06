@@ -27,7 +27,7 @@ public:
 	Client(DB *db_, DtranxDB *dtranx_db_, CoreWorkload &wl, int clientID) :
 			db_(db_), dtranx_db_(dtranx_db_), workload_(wl), clientID(clientID) {
 		if (clientID != -1) {
-			output.open("workload" + std::to_string(clientID));
+			//output.open("workload" + std::to_string(clientID));
 		}
 	}
 	void InitDB(DB *db) {
@@ -42,7 +42,7 @@ public:
 
 	virtual ~Client() {
 		if (clientID != -1) {
-			output.close();
+			//output.close();
 		}
 	}
 
@@ -59,7 +59,7 @@ protected:
 	DtranxDB *dtranx_db_;
 	CoreWorkload &workload_;
 	int clientID;
-	std::ofstream output;
+	//std::ofstream output;
 };
 
 inline bool Client::DoInsert() {
@@ -107,14 +107,16 @@ inline int Client::TransactionRead() {
 	if (dtranx_db_ != NULL) {
 		assert(dtranx_db_ != NULL);
 		std::vector<std::string> keys = workload_.NextTransactionKeys();
+		/*
 		std::string line = "read ";
 		for (auto it = keys.begin(); it != keys.end(); ++it) {
 			line += (*it) + " ";
 		}
 		line += "\n";
 		if (clientID != -1) {
-			output << line;
+			//output << line;
 		}
+		*/
 		return dtranx_db_->Read(keys);
 	}
 	assert(db_ != NULL);
@@ -138,7 +140,7 @@ inline int Client::TransactionSnapshotRead() {
 	}
 	line += "\n";
 	if (clientID != -1) {
-		output << line;
+		//output << line;
 	}
 	return dtranx_db_->ReadSnapshot(keys);
 }
@@ -163,7 +165,7 @@ inline int Client::TransactionReadModifyWrite() {
 		}
 		line += "\n";
 		if (clientID != -1) {
-			output << line;
+			//output << line;
 		}
 		return dtranx_db_->Update(keys, kvs_filter);
 	}

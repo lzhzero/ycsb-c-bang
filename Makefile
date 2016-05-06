@@ -1,5 +1,5 @@
-CC=g++-4.9
-CFLAGS=-std=c++11 -rdynamic -g -Wall -pthread -I./
+CC=g++-4.6
+CFLAGS=-std=c++0x -rdynamic -g -Wall -pthread -I./
 LDFLAGS= -lpthread -ltbb -ldtranx -lprotobuf -lzmq
 SUBDIRS=core db
 SUBSRCS=$(wildcard core/*.cc) $(wildcard db/*.cc)

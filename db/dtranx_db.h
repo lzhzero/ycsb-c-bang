@@ -21,16 +21,17 @@ class DtranxDB {
 public:
 	typedef std::pair<std::string, std::string> KVPair;
 	//Not using unordered_map for clients because incompatibility between g++4.6 and g++4.9
-	void Init(std::vector<std::string> ips, std::vector<DTranx::Client::Client*> clients) {
+	void Init(std::vector<std::string> ips,
+			std::vector<DTranx::Client::Client*> clients) {
 		std::lock_guard<std::mutex> lock(mutex_);
 		cout << "A new thread begins working." << endl;
-		DTranx::Util::ConfigHelper configHelper;
-		configHelper.readFile("DTranx.conf");
-		std::shared_ptr<zmq::context_t> context = std::make_shared<
-				zmq::context_t>(
-				configHelper.read<DTranx::uint32>("maxIOThreads"));
-		clientTranx = new DTranx::Client::ClientTranx("DTranx.conf", context, ips);
-		for(size_t i= 0; i< clients.size(); ++i){
+		/*
+		 * do not create context in each thread, since that creates too many file descriptors
+		 */
+		//std::shared_ptr<zmq::context_t> context = std::make_shared<
+		//		zmq::context_t>(1);
+		clientTranx = new DTranx::Client::ClientTranx("60000", NULL, ips);
+		for (size_t i = 0; i < clients.size(); ++i) {
 			clientTranx->InitClients(ips[i], clients[i]);
 		}
 	}
@@ -43,17 +44,19 @@ public:
 
 	int Read(std::vector<std::string> keys) {
 		std::lock_guard<std::mutex> lock(mutex_);
+		std::string value;
+		DTranx::Storage::Status status;
+
 		for (auto it = keys.begin(); it != keys.end(); ++it) {
-			std::string value;
-			DTranx::Storage::Status status = clientTranx->Read(
-					const_cast<std::string&>(*it), value);
+			status = clientTranx->Read(const_cast<std::string&>(*it), value);
 			if (status == DTranx::Storage::Status::OK) {
 			} else {
 				clientTranx->Clear();
-				std::cout<<"reading "<<(*it)<<" failure"<<std::endl;
+				std::cout << "reading " << (*it) << " failure" << std::endl;
 				return DB::kErrorNoData;
 			}
 		}
+
 		bool success = clientTranx->Commit();
 		clientTranx->Clear();
 		if (success) {
@@ -70,9 +73,15 @@ public:
 			DTranx::Storage::Status status = clientTranx->Read(
 					const_cast<std::string&>(*it), value, true);
 			if (status == DTranx::Storage::Status::OK) {
+			} else if (status
+					== DTranx::Storage::Status::SNAPSHOT_NOT_CREATED) {
+				clientTranx->Clear();
+				std::cout << "reading " << (*it) << " failure, no snapshot"
+						<< std::endl;
+				return DB::kErrorNoData;
 			} else {
 				clientTranx->Clear();
-				std::cout<<"reading "<<(*it)<<" failure"<<std::endl;
+				std::cout << "reading " << (*it) << " failure" << std::endl;
 				return DB::kErrorNoData;
 			}
 		}
