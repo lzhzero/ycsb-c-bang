@@ -11,25 +11,17 @@
 
 #include <vector>
 #include <string>
+#include "db_base.h"
 
 namespace ycsbc {
 
-class DB {
+class DB: public DB_BASE {
  public:
-  typedef std::pair<std::string, std::string> KVPair;
-  static const int kOK = 0;
-  static const int kErrorNoData = 1;
-  static const int kErrorConflict = 2;
   ///
   /// Initializes any state for accessing this DB.
   /// Called once per DB client (thread); there is a single DB instance globally.
   ///
   virtual void Init() { }
-  ///
-  /// Clears any state for accessing this DB.
-  /// Called once per DB client (thread); there is a single DB instance globally.
-  ///
-  virtual void Close() { }
   ///
   /// Reads a record from the database.
   /// Field/value pairs from the result are stored in a vector.

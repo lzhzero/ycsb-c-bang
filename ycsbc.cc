@@ -23,26 +23,32 @@ void UsageMessage(const char *command);
 bool StrStartWith(const char *str, const char *pre);
 string ParseCommandLine(int argc, const char *argv[], utils::Properties &props);
 
+struct DBData {
+	bool isKV;
+	std::vector<std::string> ips;
+	ycsbc::DB *db;
+	ycsbc::KVDB *kvdb;
+	DBData()
+		:isKV(false),  ips(), db(NULL), kvdb(NULL){
+	}
+};
+
 /*
  * Thread function
  * for DTranx(key value store), DB is independently instantiated among threads while DTranx Clients are shared.
  */
-void DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
-bool is_loading, std::vector<std::string> ips,
-		std::vector<DTranx::Client::Client*> clients, int clientID, int *sum) {
-
-	//clientID controls whether to store workload or not for analysis
-	ycsbc::DtranxDB *dtranx_db = NULL;
-	if (clients.size() > 0) {
-		dtranx_db = new ycsbc::DtranxDB();
+void DelegateClient(DBData *dbData, ycsbc::CoreWorkload *wl, const int num_ops,
+bool is_loading, int *sum) {
+	ycsbc::KVDB* kvdb = dynamic_cast<ycsbc::KVDB*>(ycsbc::DBFactory::CreateDB("hyperdex"));
+	kvdb->Init(dbData->ips);
+	if (dbData->isKV) {
+		assert(dbData->kvdb != NULL);
 	}
-	if (db) {
-		db->Init();
+	else{
+		assert(dbData->db != NULL);
+		dbData->db->Init();
 	}
-	if (dtranx_db) {
-		dtranx_db->Init(ips, clients);
-	}
-	ycsbc::Client client(db, dtranx_db, *wl, clientID);
+	ycsbc::Client client(dbData->db, kvdb, *wl);
 	for (int i = 0; i < num_ops; ++i) {
 		if (is_loading) {
 			*sum += client.DoInsert();
@@ -50,26 +56,25 @@ bool is_loading, std::vector<std::string> ips,
 			*sum += client.DoTransaction();
 		}
 	}
-	if (db) {
-		db->Close();
-	}
-
-	if (dtranx_db) {
-		dtranx_db->Close();
-	}
-	delete dtranx_db;
+	kvdb->Close();
+	delete kvdb;
 }
 
 int main(const int argc, const char *argv[]) {
 	utils::Properties props;
 	string file_name = ParseCommandLine(argc, argv, props);
-	std::string clusterFileName = props.GetProperty("clusterfilename", "");
 
-	//create shared clients for dtranx
-	std::vector<DTranx::Client::Client*> clients;
-	std::vector<std::string> ips;
-	if (props["dbname"] == "dtranx") {
-		assert(!clusterFileName.empty());
+	/*
+	 * prepare clients, ips etc. for dtranx
+	 */
+	DBData dbData;
+	if (props["dbname"] == "dtranx" || props["dbname"] == "hyperdex") {
+		dbData.isKV = true;
+		std::string clusterFileName = props.GetProperty("clusterfilename", "");
+		if (clusterFileName.empty()) {
+			cout << "please use -C for cluster filename" << endl;
+			return 0;
+		}
 		std::ifstream ipFile(clusterFileName);
 		if (!ipFile.is_open()) {
 			cout << "cannot open " << clusterFileName << endl;
@@ -77,19 +82,22 @@ int main(const int argc, const char *argv[]) {
 		}
 		std::string ip;
 		while (std::getline(ipFile, ip)) {
-			ips.push_back(ip);
-		}
-		std::shared_ptr<zmq::context_t> context = std::make_shared<
-				zmq::context_t>(100);
-		for (auto it = ips.begin(); it != ips.end(); ++it) {
-			clients.push_back(
-					new DTranx::Client::Client(*it, "60000", context));
+			dbData.ips.push_back(ip);
 		}
 	}
-
-	ycsbc::DB *db = ycsbc::DBFactory::CreateDB(props["dbname"]);
+	if(dbData.isKV){
+		dbData.kvdb = dynamic_cast<ycsbc::KVDB*>(ycsbc::DBFactory::CreateDB(props["dbname"]));
+		dbData.kvdb->Init(dbData.ips);
+	}
+	else{
+		dbData.db = dynamic_cast<ycsbc::DB*>(ycsbc::DBFactory::CreateDB(props["dbname"]));
+	}
 	ycsbc::CoreWorkload wl;
 	wl.Init(props);
+
+	/*
+	 * generate a keys file if needed
+	 */
 	if (props.GetProperty("genwork", "0") == "1") {
 		std::ofstream workFile("genwork");
 		if (!workFile.is_open()) {
@@ -106,7 +114,9 @@ int main(const int argc, const char *argv[]) {
 
 	const int num_threads = stoi(props.GetProperty("threadcount", "1"));
 
-	// Loads data
+	/*
+	 *  Loads data
+	 */
 	vector<std::thread> threads;
 	int total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
 	int sums[num_threads];
@@ -115,8 +125,8 @@ int main(const int argc, const char *argv[]) {
 	}
 	for (int i = 0; i < num_threads; ++i) {
 		threads.push_back(
-				std::thread(DelegateClient, db, &wl, total_ops / num_threads,
-				true, ips, clients, -1, &sums[i]));
+				std::thread(DelegateClient, &dbData, &wl, total_ops / num_threads,
+				true, &sums[i]));
 	}
 	for (int i = 0; i < num_threads; ++i) {
 		threads[i].join();
@@ -133,25 +143,22 @@ int main(const int argc, const char *argv[]) {
 		sums[i] = 0;
 	}
 
-	// Peforms transactions
+	/*
+	 * Performs transactions
+	 */
 	total_ops = stoi(props[ycsbc::CoreWorkload::OPERATION_COUNT_PROPERTY]);
 	utils::Timer<double> timer;
 	timer.Start();
-	try {
-		for (int i = 0; i < num_threads; ++i) {
-			threads.push_back(
-					std::thread(DelegateClient, db, &wl,
-							total_ops / num_threads,
-							false, ips, clients, -1, &sums[i]));
-		}
-		for (int i = 0; i < num_threads; ++i) {
-			threads[i].join();
-		}
-		threads.clear();
-		total_ops = total_ops / num_threads * num_threads;
-	} catch (std::exception &e) {
-		std::cout << "ning bad alloc main" << std::endl;
+	for (int i = 0; i < num_threads; ++i) {
+		threads.push_back(
+				std::thread(DelegateClient, &dbData, &wl, total_ops / num_threads,
+				false, &sums[i]));
 	}
+	for (int i = 0; i < num_threads; ++i) {
+		threads[i].join();
+	}
+	threads.clear();
+	total_ops = total_ops / num_threads * num_threads;
 
 	sum = 0;
 	for (int i = 0; i < num_threads; ++i) {
@@ -163,9 +170,8 @@ int main(const int argc, const char *argv[]) {
 	cerr << sum / duration / 1000 << endl;
 	cerr << "total_ops: " << total_ops << ", success: " << sum
 			<< ", percentage: " << 1.0 * sum / total_ops << endl;
-
-	for (auto it = clients.begin(); it != clients.end(); ++it) {
-		delete *it;
+	if(dbData.isKV){
+		dbData.kvdb->Close();
 	}
 }
 

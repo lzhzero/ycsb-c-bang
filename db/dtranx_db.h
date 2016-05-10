@@ -5,45 +5,52 @@
 #ifndef YCSB_C_DTRANX_DB_H_
 #define YCSB_C_DTRANX_DB_H_
 
-#include "core/db.h"
-
 #include <mutex>
 #include <iostream>
 #include <fstream>
 #include "DTranx/Client/ClientTranx.h"
+#include "core/kvdb.h"
 
 namespace ycsbc {
 
 using std::cout;
 using std::endl;
 
-class DtranxDB {
+class DtranxDB: public KVDB {
 public:
-	typedef std::pair<std::string, std::string> KVPair;
 	//Not using unordered_map for clients because incompatibility between g++4.6 and g++4.9
-	void Init(std::vector<std::string> ips,
-			std::vector<DTranx::Client::Client*> clients) {
-		std::lock_guard<std::mutex> lock(mutex_);
-		cout << "A new thread begins working." << endl;
-		/*
-		 * do not create context in each thread, since that creates too many file descriptors
-		 */
-		//std::shared_ptr<zmq::context_t> context = std::make_shared<
-		//		zmq::context_t>(1);
-		clientTranx = new DTranx::Client::ClientTranx("60000", NULL, ips);
-		for (size_t i = 0; i < clients.size(); ++i) {
-			clientTranx->InitClients(ips[i], clients[i]);
+	void Init(std::vector<std::string> ips){
+		ips_ = ips;
+		std::shared_ptr<zmq::context_t> context = std::make_shared
+				< zmq::context_t > (100);
+		for (auto it = ips.begin(); it != ips.end(); ++it) {
+			clients_.push_back(
+					new DTranx::Client::Client(*it, "60000", context));
+
 		}
+	}
+	DTranx::Client::ClientTranx *CreateClientTranx() {
+		DTranx::Client::ClientTranx *clientTranx =
+				new DTranx::Client::ClientTranx("60000", NULL, ips_);
+		assert(ips_.size() == clients_.size());
+		for (size_t i = 0; i < clients_.size(); ++i) {
+			clientTranx->InitClients(ips_[i], clients_[i]);
+		}
+		return clientTranx;
+	}
+
+	void DestroyClientTranx(DTranx::Client::ClientTranx *clientTranx) {
+		delete clientTranx;
 	}
 
 	void Close() {
-		if (clientTranx) {
-			delete clientTranx;
+		for (auto it = clients_.begin(); it != clients_.end(); ++it) {
+			delete *it;
 		}
 	}
 
 	int Read(std::vector<std::string> keys) {
-		std::lock_guard<std::mutex> lock(mutex_);
+		DTranx::Client::ClientTranx * clientTranx = CreateClientTranx();
 		std::string value;
 		DTranx::Storage::Status status;
 
@@ -51,23 +58,22 @@ public:
 			status = clientTranx->Read(const_cast<std::string&>(*it), value);
 			if (status == DTranx::Storage::Status::OK) {
 			} else {
-				clientTranx->Clear();
+				DestroyClientTranx(clientTranx);
 				std::cout << "reading " << (*it) << " failure" << std::endl;
-				return DB::kErrorNoData;
+				return kErrorNoData;
 			}
 		}
-
 		bool success = clientTranx->Commit();
-		clientTranx->Clear();
+		DestroyClientTranx(clientTranx);
 		if (success) {
-			return DB::kOK;
+			return kOK;
 		} else {
-			return DB::kErrorConflict;
+			return kErrorConflict;
 		}
 	}
 
 	int ReadSnapshot(std::vector<std::string> keys) {
-		std::lock_guard<std::mutex> lock(mutex_);
+		DTranx::Client::ClientTranx * clientTranx = CreateClientTranx();
 		for (auto it = keys.begin(); it != keys.end(); ++it) {
 			std::string value;
 			DTranx::Storage::Status status = clientTranx->Read(
@@ -75,85 +81,85 @@ public:
 			if (status == DTranx::Storage::Status::OK) {
 			} else if (status
 					== DTranx::Storage::Status::SNAPSHOT_NOT_CREATED) {
-				clientTranx->Clear();
+				DestroyClientTranx(clientTranx);
 				std::cout << "reading " << (*it) << " failure, no snapshot"
 						<< std::endl;
-				return DB::kErrorNoData;
+				return kErrorNoData;
 			} else {
-				clientTranx->Clear();
+				DestroyClientTranx(clientTranx);
 				std::cout << "reading " << (*it) << " failure" << std::endl;
-				return DB::kErrorNoData;
+				return kErrorNoData;
 			}
 		}
 		bool success = clientTranx->Commit();
-		clientTranx->Clear();
+		DestroyClientTranx(clientTranx);
 		if (success) {
-			return DB::kOK;
+			return kOK;
 		} else {
-			return DB::kErrorConflict;
+			return kErrorConflict;
 		}
 	}
 
 	int Write(std::vector<KVPair> writes) {
-		std::lock_guard<std::mutex> lock(mutex_);
+		DTranx::Client::ClientTranx * clientTranx = CreateClientTranx();
 		for (auto it = writes.begin(); it != writes.end(); ++it) {
 			clientTranx->Write(it->first, it->second);
 			cout << "update write key: " << it->first << " and the value is "
 					<< it->second << endl;
 		}
 		bool success = clientTranx->Commit();
-		clientTranx->Clear();
+		DestroyClientTranx(clientTranx);
 		if (success) {
-			return DB::kOK;
+			return kOK;
 		} else {
-			return DB::kErrorConflict;
+			return kErrorConflict;
 		}
 	}
 
 	int Update(std::vector<std::string> reads, std::vector<KVPair> writes) {
-		std::lock_guard<std::mutex> lock(mutex_);
+		DTranx::Client::ClientTranx * clientTranx = CreateClientTranx();
 		for (auto it = reads.begin(); it != reads.end(); ++it) {
 			std::string value;
 			DTranx::Storage::Status status = clientTranx->Read(
 					const_cast<std::string&>(*it), value);
 			if (status == DTranx::Storage::Status::OK) {
 			} else {
-				clientTranx->Clear();
-				return DB::kErrorNoData;
+				DestroyClientTranx(clientTranx);
+				return kErrorNoData;
 			}
 		}
 		for (auto it = writes.begin(); it != writes.end(); ++it) {
 			clientTranx->Write(it->first, it->second);
 		}
 		bool success = clientTranx->Commit();
-		clientTranx->Clear();
+		DestroyClientTranx(clientTranx);
 		if (success) {
-			return DB::kOK;
+			return kOK;
 		} else {
-			return DB::kErrorConflict;
+			return kErrorConflict;
 		}
 	}
 
 	int Insert(std::vector<KVPair> writes) {
-		std::lock_guard<std::mutex> lock(mutex_);
+		DTranx::Client::ClientTranx * clientTranx = CreateClientTranx();
 		for (auto it = writes.begin(); it != writes.end(); ++it) {
 			cout << "insert write key: " << it->first << " and the value is "
 					<< it->second << endl;
 			clientTranx->Write(it->first, it->second);
 		}
 		bool success = clientTranx->Commit();
-		clientTranx->Clear();
+		DestroyClientTranx(clientTranx);
 		if (success) {
 			cout << "commit success" << endl;
-			return DB::kOK;
+			return kOK;
 		} else {
 			cout << "commit failure" << endl;
-			return DB::kErrorConflict;
+			return kErrorConflict;
 		}
 	}
 private:
-	std::mutex mutex_;
-	DTranx::Client::ClientTranx *clientTranx;
+	std::vector<DTranx::Client::Client*> clients_;
+	std::vector<std::string> ips_;
 };
 
 } // ycsbc

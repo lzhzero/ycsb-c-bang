@@ -9,13 +9,13 @@
 #ifndef YCSB_C_DB_FACTORY_H_
 #define YCSB_C_DB_FACTORY_H_
 
-#include "core/db.h"
+#include "core/db_base.h"
 
 namespace ycsbc {
 
 class DBFactory {
  public:
-  static DB* CreateDB(const std::string name);
+  static DB_BASE* CreateDB(const std::string name);
 };
 
 } // ycsbc
