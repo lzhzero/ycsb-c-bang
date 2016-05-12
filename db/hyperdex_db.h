@@ -33,12 +33,19 @@ public:
 		struct hyperdex_client_attribute* attrs;
 		size_t attrs_sz = 0;
 		for (auto it = keys.begin(); it != keys.end(); ++it) {
-			hyperdex_client_xact_get(tranx, SPACE.c_str(),
-					it->c_str(), it->size(), &tranx_status,
+			hyperdex_client_xact_get(tranx, SPACE.c_str(), it->c_str(),
+					it->size(), &tranx_status,
 					(const hyperdex_client_attribute**) &attrs, &attrs_sz);
 			hyperdex_client_loop(client_, -1, &loop_status);
 			if (tranx_status != HYPERDEX_CLIENT_SUCCESS) {
-				//std::cout << "reading " << (*it) << " failure" << std::endl;
+				/*
+				std::cout << "reading " << (*it) << " failure "
+						<< hyperdex_client_returncode_to_string(tranx_status)
+						<< " "
+						<< hyperdex_client_returncode_to_string(loop_status)
+						<< std::endl;
+						*/
+				hyperdex_client_abort_transaction(tranx);
 				return kErrorNoData;
 			}
 			hyperdex_client_destroy_attrs(attrs, attrs_sz);
@@ -72,8 +79,8 @@ public:
 		struct hyperdex_client_attribute attr;
 
 		for (auto it = writes.begin(); it != writes.end(); ++it) {
-			hyperdex_client_put(client_, SPACE.c_str(),
-					it->first.c_str(), it->first.size(), &attr, 1, &op_status);
+			hyperdex_client_xact_put(tranx, SPACE.c_str(), it->first.c_str(),
+					it->first.size(), &attr, 1, &op_status);
 			hyperdex_client_loop(client_, -1, &loop_status);
 		}
 		hyperdex_client_commit_transaction(tranx, &tranx_status);
@@ -100,20 +107,26 @@ public:
 		size_t attrs_sz = 0;
 
 		for (auto it = reads.begin(); it != reads.end(); ++it) {
-			hyperdex_client_xact_get(tranx, SPACE.c_str(),
-					it->c_str(), it->size(), &tranx_status,
+			hyperdex_client_xact_get(tranx, SPACE.c_str(), it->c_str(),
+					it->size(), &tranx_status,
 					(const hyperdex_client_attribute**) &attrs, &attrs_sz);
 			hyperdex_client_loop(client_, -1, &loop_status);
 			if (tranx_status != HYPERDEX_CLIENT_SUCCESS) {
 				//std::cout << "reading " << (*it) << " failure" << std::endl;
+				hyperdex_client_abort_transaction(tranx);
 				return kErrorNoData;
 			}
 			hyperdex_client_destroy_attrs(attrs, attrs_sz);
 		}
 		for (auto it = writes.begin(); it != writes.end(); ++it) {
-			hyperdex_client_put(client_, SPACE.c_str(),
-					it->first.c_str(), it->first.size(), &attr, 1, &op_status);
+			hyperdex_client_xact_put(tranx, SPACE.c_str(), it->first.c_str(),
+					it->first.size(), &attr, 1, &op_status);
 			hyperdex_client_loop(client_, -1, &loop_status);
+			if (op_status != HYPERDEX_CLIENT_SUCCESS) {
+				//std::cout << "writing " << (it->first) << " failure" << std::endl;
+				hyperdex_client_abort_transaction(tranx);
+				return kErrorNoData;
+			}
 		}
 		hyperdex_client_commit_transaction(tranx, &tranx_status);
 		hyperdex_client_loop(client_, -1, &loop_status);
@@ -137,8 +150,8 @@ public:
 		struct hyperdex_client_attribute attr;
 
 		for (auto it = writes.begin(); it != writes.end(); ++it) {
-			hyperdex_client_put(client_, SPACE.c_str(),
-					it->first.c_str(), it->first.size(), &attr, 1, &op_status);
+			hyperdex_client_xact_put(tranx, SPACE.c_str(), it->first.c_str(),
+					it->first.size(), &attr, 1, &op_status);
 			hyperdex_client_loop(client_, -1, &loop_status);
 		}
 		hyperdex_client_commit_transaction(tranx, &tranx_status);
