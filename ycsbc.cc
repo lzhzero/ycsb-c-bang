@@ -9,6 +9,7 @@
 #include <cstring>
 #include <string>
 #include <iostream>
+#include <ctime>
 #include <vector>
 #include <future>
 #include "core/utils.h"
@@ -38,9 +39,13 @@ struct DBData {
  * for DTranx(key value store), DB is independently instantiated among threads while DTranx Clients are shared.
  */
 void DelegateClient(DBData *dbData, ycsbc::CoreWorkload *wl, const int num_ops,
-bool is_loading, int *sum) {
-	ycsbc::KVDB* kvdb = dynamic_cast<ycsbc::KVDB*>(ycsbc::DBFactory::CreateDB("hyperdex"));
-	kvdb->Init(dbData->ips);
+bool is_loading, std::atomic<int> *sum) {
+	/*
+	 * when testing hyperdexDB, create a kvdb instance for each thread
+	 * because each thread needs one socket connection to reach the max throughput
+	 */
+	//ycsbc::KVDB* kvdb = dynamic_cast<ycsbc::KVDB*>(ycsbc::DBFactory::CreateDB("hyperdex"));
+	//kvdb->Init(dbData->ips);
 	if (dbData->isKV) {
 		assert(dbData->kvdb != NULL);
 	}
@@ -48,16 +53,20 @@ bool is_loading, int *sum) {
 		assert(dbData->db != NULL);
 		dbData->db->Init();
 	}
-	ycsbc::Client client(dbData->db, kvdb, *wl);
+	ycsbc::Client client(dbData->db, dbData->kvdb, *wl);
 	for (int i = 0; i < num_ops; ++i) {
 		if (is_loading) {
-			*sum += client.DoInsert();
+			if(client.DoInsert()){
+				sum->operator ++();
+			}
 		} else {
-			*sum += client.DoTransaction();
+			if(client.DoTransaction()){
+				sum->operator ++();
+			}
 		}
 	}
-	kvdb->Close();
-	delete kvdb;
+	//kvdb->Close();
+	//delete kvdb;
 }
 
 int main(const int argc, const char *argv[]) {
@@ -68,7 +77,7 @@ int main(const int argc, const char *argv[]) {
 	 * prepare clients, ips etc. for dtranx
 	 */
 	DBData dbData;
-	if (props["dbname"] == "dtranx" || props["dbname"] == "hyperdex") {
+	if (props["dbname"] == "dtranx" || props["dbname"] == "hyperdex" || props["dbname"] == "btree") {
 		dbData.isKV = true;
 		std::string clusterFileName = props.GetProperty("clusterfilename", "");
 		if (clusterFileName.empty()) {
@@ -119,9 +128,10 @@ int main(const int argc, const char *argv[]) {
 	 */
 	vector<std::thread> threads;
 	int total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
-	int sums[num_threads];
+	//int sums[num_threads];
+	std::atomic<int> sums[num_threads];
 	for (int i = 0; i < num_threads; ++i) {
-		sums[i] = 0;
+		sums[i].store(0);
 	}
 	for (int i = 0; i < num_threads; ++i) {
 		threads.push_back(
@@ -135,12 +145,12 @@ int main(const int argc, const char *argv[]) {
 
 	int sum = 0;
 	for (int i = 0; i < num_threads; ++i) {
-		sum += sums[i];
+		sum += sums[i].load();
 	}
 	cerr << "# Loading records:\t" << sum << endl;
 
 	for (int i = 0; i < num_threads; ++i) {
-		sums[i] = 0;
+		sums[i].store(0);
 	}
 
 	/*
@@ -154,15 +164,26 @@ int main(const int argc, const char *argv[]) {
 				std::thread(DelegateClient, &dbData, &wl, total_ops / num_threads,
 				false, &sums[i]));
 	}
+	sum = 0;
+	while(sum < total_ops * 0.8){
+		sum = 0;
+		for (int i = 0; i < num_threads; ++i) {
+			sum += sums[i].load();
+		}
+		time_t t = time(0);   // get time now
+		struct tm * now = localtime( & t );
+		cout << now->tm_sec<<": "<<sum<< endl;
+		sleep(1);
+	}
+	sum = 0;
 	for (int i = 0; i < num_threads; ++i) {
 		threads[i].join();
 	}
 	threads.clear();
 	total_ops = total_ops / num_threads * num_threads;
 
-	sum = 0;
 	for (int i = 0; i < num_threads; ++i) {
-		sum += sums[i];
+		sum += sums[i].load();
 	}
 	double duration = timer.End();
 	cerr << "# Transaction throughput (KTPS)" << endl;

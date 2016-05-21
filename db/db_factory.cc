@@ -14,6 +14,7 @@
 #include "db/tbb_scan_db.h"
 #include "db/dtranx_db.h"
 #include "db/hyperdex_db.h"
+#include "db/btree_db.h"
 
 using ycsbc::DB_BASE;
 using ycsbc::DBFactory;
@@ -31,7 +32,9 @@ DB_BASE* DBFactory::CreateDB(const std::string name) {
 		return new DtranxDB;
 	} else if (name == "hyperdex") {
 		return new HyperdexDB;
-	} else
+	}else if (name == "btree") {
+		return new BtreeDB;
+	}  else
 		return NULL;
 }
 

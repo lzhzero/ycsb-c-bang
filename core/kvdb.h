@@ -22,9 +22,7 @@ public:
 	///
 	virtual int Read(std::vector<std::string> keys) = 0;
 
-	int ReadSnapshot(std::vector<std::string> keys){
-		return 0;
-	}
+	virtual int ReadSnapshot(std::vector<std::string> keys) = 0;
 	///
 	/// Updates a record in the database.
 	/// Field/value pairs in the specified vector are written to the record,
