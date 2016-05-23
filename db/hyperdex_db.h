@@ -13,6 +13,20 @@ static int PORT = 7777;
 
 class HyperdexDB: public KVDB {
 public:
+	HyperdexDB() {
+		shareDB = true;
+	}
+
+	HyperdexDB(const HyperdexDB& other) {
+		std::cout << "HyperdexDB copy contructor is called" << std::endl;
+		ips_ = other.ips_;
+		client_ = other.client_;
+	}
+
+	KVDB* Clone() {
+		return new HyperdexDB(*this);
+	}
+
 	void Init(std::vector<std::string> ips) {
 		ips_ = ips;
 		assert(ips_.size() > 0);
@@ -39,12 +53,12 @@ public:
 			hyperdex_client_loop(client_, -1, &loop_status);
 			if (tranx_status != HYPERDEX_CLIENT_SUCCESS) {
 				/*
-				std::cout << "reading " << (*it) << " failure "
-						<< hyperdex_client_returncode_to_string(tranx_status)
-						<< " "
-						<< hyperdex_client_returncode_to_string(loop_status)
-						<< std::endl;
-						*/
+				 std::cout << "reading " << (*it) << " failure "
+				 << hyperdex_client_returncode_to_string(tranx_status)
+				 << " "
+				 << hyperdex_client_returncode_to_string(loop_status)
+				 << std::endl;
+				 */
 				hyperdex_client_abort_transaction(tranx);
 				return kErrorNoData;
 			}

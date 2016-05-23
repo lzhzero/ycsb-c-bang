@@ -11,6 +11,9 @@
 
 namespace ycsbc {
 
+/*
+ * KVDB means databases with clients shared among all threads
+ */
 class KVDB: public DB_BASE {
 public:
 	virtual void Init(std::vector<std::string> ips) = 0;
@@ -47,6 +50,23 @@ public:
 
 	virtual ~KVDB() {
 	}
+
+	bool isDBShared(){
+		return shareDB;
+	}
+
+	virtual void CreateDB(){
+
+	}
+	virtual void DestroyDB(){
+
+	}
+	virtual KVDB *Clone() = 0;
+protected:
+	/*
+	 * shareDB means if we want to share DB instance among threads
+	 */
+	bool shareDB;
 };
 
 } // ycsbc

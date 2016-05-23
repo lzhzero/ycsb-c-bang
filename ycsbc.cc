@@ -17,6 +17,7 @@
 #include "core/client.h"
 #include "core/core_workload.h"
 #include "db/db_factory.h"
+#include "db/btree_db.h"
 
 using namespace std;
 
@@ -29,8 +30,9 @@ struct DBData {
 	std::vector<std::string> ips;
 	ycsbc::DB *db;
 	ycsbc::KVDB *kvdb;
-	DBData()
-		:isKV(false),  ips(), db(NULL), kvdb(NULL){
+	std::string dbName;
+	DBData() :
+			isKV(false), ips(), db(NULL), kvdb(NULL) {
 	}
 };
 
@@ -48,19 +50,41 @@ bool is_loading, std::atomic<int> *sum) {
 	//kvdb->Init(dbData->ips);
 	if (dbData->isKV) {
 		assert(dbData->kvdb != NULL);
-	}
-	else{
+	} else {
 		assert(dbData->db != NULL);
 		dbData->db->Init();
 	}
+	/*
+	 * btreedb is created for each thread to avoid metadata reading/writing
+	 */
+	if (dbData->isKV && !dbData->kvdb->isDBShared()) {
+		ycsbc::KVDB *kvdb = dbData->kvdb->Clone();
+		kvdb->CreateDB();
+		ycsbc::Client client(dbData->db, kvdb, *wl);
+		for (int i = 0; i < num_ops; ++i) {
+			if (is_loading) {
+				if (client.DoInsert()) {
+					sum->operator ++();
+				}
+			} else {
+				if (client.DoTransaction()) {
+					sum->operator ++();
+				}
+			}
+		}
+		kvdb->DestroyDB();
+		delete kvdb;
+		return;
+	}
+
 	ycsbc::Client client(dbData->db, dbData->kvdb, *wl);
 	for (int i = 0; i < num_ops; ++i) {
 		if (is_loading) {
-			if(client.DoInsert()){
+			if (client.DoInsert()) {
 				sum->operator ++();
 			}
 		} else {
-			if(client.DoTransaction()){
+			if (client.DoTransaction()) {
 				sum->operator ++();
 			}
 		}
@@ -77,7 +101,9 @@ int main(const int argc, const char *argv[]) {
 	 * prepare clients, ips etc. for dtranx
 	 */
 	DBData dbData;
-	if (props["dbname"] == "dtranx" || props["dbname"] == "hyperdex" || props["dbname"] == "btree") {
+	dbData.dbName = props["dbname"];
+	if (props["dbname"] == "dtranx" || props["dbname"] == "hyperdex"
+			|| props["dbname"] == "btree") {
 		dbData.isKV = true;
 		std::string clusterFileName = props.GetProperty("clusterfilename", "");
 		if (clusterFileName.empty()) {
@@ -94,12 +120,13 @@ int main(const int argc, const char *argv[]) {
 			dbData.ips.push_back(ip);
 		}
 	}
-	if(dbData.isKV){
-		dbData.kvdb = dynamic_cast<ycsbc::KVDB*>(ycsbc::DBFactory::CreateDB(props["dbname"]));
+	if (dbData.isKV) {
+		dbData.kvdb = dynamic_cast<ycsbc::KVDB*>(ycsbc::DBFactory::CreateDB(
+				props["dbname"]));
 		dbData.kvdb->Init(dbData.ips);
-	}
-	else{
-		dbData.db = dynamic_cast<ycsbc::DB*>(ycsbc::DBFactory::CreateDB(props["dbname"]));
+	} else {
+		dbData.db = dynamic_cast<ycsbc::DB*>(ycsbc::DBFactory::CreateDB(
+				props["dbname"]));
 	}
 	ycsbc::CoreWorkload wl;
 	wl.Init(props);
@@ -135,8 +162,9 @@ int main(const int argc, const char *argv[]) {
 	}
 	for (int i = 0; i < num_threads; ++i) {
 		threads.push_back(
-				std::thread(DelegateClient, &dbData, &wl, total_ops / num_threads,
-				true, &sums[i]));
+				std::thread(DelegateClient, &dbData, &wl,
+						total_ops / num_threads,
+						true, &sums[i]));
 	}
 	for (int i = 0; i < num_threads; ++i) {
 		threads[i].join();
@@ -161,18 +189,19 @@ int main(const int argc, const char *argv[]) {
 	timer.Start();
 	for (int i = 0; i < num_threads; ++i) {
 		threads.push_back(
-				std::thread(DelegateClient, &dbData, &wl, total_ops / num_threads,
-				false, &sums[i]));
+				std::thread(DelegateClient, &dbData, &wl,
+						total_ops / num_threads,
+						false, &sums[i]));
 	}
 	sum = 0;
-	while(sum < total_ops * 0.8){
+	while (sum < total_ops * 0.8) {
 		sum = 0;
 		for (int i = 0; i < num_threads; ++i) {
 			sum += sums[i].load();
 		}
 		time_t t = time(0);   // get time now
-		struct tm * now = localtime( & t );
-		cout << now->tm_sec<<": "<<sum<< endl;
+		struct tm * now = localtime(&t);
+		cout << now->tm_sec << ": " << sum << endl;
 		sleep(1);
 	}
 	sum = 0;
@@ -191,7 +220,7 @@ int main(const int argc, const char *argv[]) {
 	cerr << sum / duration / 1000 << endl;
 	cerr << "total_ops: " << total_ops << ", success: " << sum
 			<< ", percentage: " << 1.0 * sum / total_ops << endl;
-	if(dbData.isKV){
+	if (dbData.isKV) {
 		dbData.kvdb->Close();
 	}
 }

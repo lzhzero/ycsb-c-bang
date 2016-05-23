@@ -18,11 +18,25 @@ using std::endl;
 
 class DtranxDB: public KVDB {
 public:
+	DtranxDB() {
+		shareDB = true;
+	}
+
+	DtranxDB(const DtranxDB& other) {
+		std::cout << "DtranxDB copy contructor is called" << std::endl;
+		ips_ = other.ips_;
+		clients_ = other.clients_;
+	}
+
+	KVDB* Clone() {
+		return new DtranxDB(*this);
+	}
+
 	//Not using unordered_map for clients because incompatibility between g++4.6 and g++4.9
-	void Init(std::vector<std::string> ips){
+	void Init(std::vector<std::string> ips) {
 		ips_ = ips;
-		std::shared_ptr<zmq::context_t> context = std::make_shared
-				< zmq::context_t > (100);
+		std::shared_ptr<zmq::context_t> context = std::make_shared<
+				zmq::context_t>(100);
 		for (auto it = ips.begin(); it != ips.end(); ++it) {
 			clients_.push_back(
 					new DTranx::Client::Client(*it, "60000", context));
