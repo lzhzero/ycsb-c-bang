@@ -23,7 +23,7 @@ public:
 	}
 
 	BtreeDB(const BtreeDB& other) {
-		std::cout << "btree copy contructor is called" << std::endl;
+		//std::cout << "btree copy contructor is called" << std::endl;
 		ips_ = other.ips_;
 		clients_ = other.clients_;
 		btreeInt = other.btreeInt;
@@ -74,8 +74,8 @@ public:
 		uint64_t realKey = StringKeyToInt(keys[0]);
 
 		bool result = btreeInt->find_unique(realKey);
-		std::cout << "read key: " << realKey << " "
-				<< (result ? "true" : "false") << std::endl;
+		//std::cout << "read key: " << realKey << " "
+		//		<< (result ? "true" : "false") << std::endl;
 		return kOK;
 	}
 
@@ -94,9 +94,10 @@ public:
 	int Insert(std::vector<KVPair> writes) {
 		assert(!writes.empty());
 		uint64_t realKey = StringKeyToInt(writes[0].first);
+		//std::cout << "insert key: " << realKey<<std::endl;
 		bool result = btreeInt->insert_unique(realKey);
-		std::cout << "insert key: " << realKey << " "
-				<< (result ? "true" : "false") << std::endl;
+		//std::cout << "insert key: " << realKey << " "
+		//		<< (result ? "true" : "false") << std::endl;
 		return kOK;
 	}
 

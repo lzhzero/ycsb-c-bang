@@ -160,18 +160,33 @@ int main(const int argc, const char *argv[]) {
 	for (int i = 0; i < num_threads; ++i) {
 		sums[i].store(0);
 	}
-	for (int i = 0; i < num_threads; ++i) {
-		threads.push_back(
-				std::thread(DelegateClient, &dbData, &wl,
-						total_ops / num_threads,
-						true, &sums[i]));
-	}
-	for (int i = 0; i < num_threads; ++i) {
-		threads[i].join();
-	}
-	threads.clear();
-
 	int sum = 0;
+	if (total_ops >= num_threads) {
+		for (int i = 0; i < num_threads; ++i) {
+			threads.push_back(
+					std::thread(DelegateClient, &dbData, &wl,
+							total_ops / num_threads,
+							true, &sums[i]));
+		}
+		sum = 0;
+		while (sum < total_ops * 0.8) {
+			sum = 0;
+			for (int i = 0; i < num_threads; ++i) {
+				sum += sums[i].load();
+			}
+			time_t t = time(0);   // get time now
+			struct tm * now = localtime(&t);
+			cout << now->tm_sec << ": " << sum << endl;
+			sleep(1);
+		}
+		sum = 0;
+
+		for (int i = 0; i < num_threads; ++i) {
+			threads[i].join();
+		}
+		threads.clear();
+	}
+	sum = 0;
 	for (int i = 0; i < num_threads; ++i) {
 		sum += sums[i].load();
 	}
@@ -194,7 +209,7 @@ int main(const int argc, const char *argv[]) {
 						false, &sums[i]));
 	}
 	sum = 0;
-	while (sum < total_ops * 0.8) {
+	while (sum < total_ops * 0.5) {
 		sum = 0;
 		for (int i = 0; i < num_threads; ++i) {
 			sum += sums[i].load();
