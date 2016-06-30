@@ -12,6 +12,7 @@
 #include <ctime>
 #include <vector>
 #include <future>
+#include <chrono>
 #include "core/utils.h"
 #include "core/timer.h"
 #include "core/client.h"
@@ -20,6 +21,8 @@
 #include "db/btree_db.h"
 
 using namespace std;
+//aggregate throughput during the previous 20 seconds
+int ONLINE_THROUGHPUT_TIME = 1000000;
 
 void UsageMessage(const char *command);
 bool StrStartWith(const char *str, const char *pre);
@@ -59,7 +62,6 @@ bool is_loading, std::atomic<int> *sum) {
 	 */
 	if (dbData->isKV && !dbData->kvdb->isDBShared()) {
 		ycsbc::KVDB *kvdb = dbData->kvdb->Clone();
-		kvdb->CreateDB();
 		ycsbc::Client client(dbData->db, kvdb, *wl);
 		for (int i = 0; i < num_ops; ++i) {
 			if (is_loading) {
@@ -72,7 +74,6 @@ bool is_loading, std::atomic<int> *sum) {
 				}
 			}
 		}
-		kvdb->DestroyDB();
 		delete kvdb;
 		return;
 	}
@@ -169,6 +170,9 @@ int main(const int argc, const char *argv[]) {
 							true, &sums[i]));
 		}
 		sum = 0;
+		std::chrono::system_clock::time_point start =
+				std::chrono::system_clock::now();
+		std::chrono::system_clock::time_point end;
 		while (sum < total_ops * 0.8) {
 			sum = 0;
 			for (int i = 0; i < num_threads; ++i) {
@@ -178,6 +182,12 @@ int main(const int argc, const char *argv[]) {
 			struct tm * now = localtime(&t);
 			cout << now->tm_sec << ": " << sum << endl;
 			sleep(1);
+			end = std::chrono::system_clock::now();
+			if (std::chrono::duration_cast<std::chrono::seconds>(end - start).count()
+					> ONLINE_THROUGHPUT_TIME) {
+				break;
+			}
+
 		}
 		sum = 0;
 
@@ -209,7 +219,10 @@ int main(const int argc, const char *argv[]) {
 						false, &sums[i]));
 	}
 	sum = 0;
-	while (sum < total_ops * 0.5) {
+	std::chrono::system_clock::time_point start =
+			std::chrono::system_clock::now();
+	std::chrono::system_clock::time_point end;
+	while (sum < total_ops * 0.8) {
 		sum = 0;
 		for (int i = 0; i < num_threads; ++i) {
 			sum += sums[i].load();
@@ -218,6 +231,11 @@ int main(const int argc, const char *argv[]) {
 		struct tm * now = localtime(&t);
 		cout << now->tm_sec << ": " << sum << endl;
 		sleep(1);
+		end = std::chrono::system_clock::now();
+		if (std::chrono::duration_cast<std::chrono::seconds>(end - start).count()
+				> ONLINE_THROUGHPUT_TIME) {
+			break;
+		}
 	}
 	sum = 0;
 	for (int i = 0; i < num_threads; ++i) {

@@ -29,8 +29,14 @@ public:
 		btreeInt = other.btreeInt;
 	}
 
+	~BtreeDB(){
+		DestroyDB();
+	}
+
 	KVDB* Clone(){
-		return new BtreeDB(*this);
+		BtreeDB* instance = new BtreeDB(*this);
+		instance->CreateDB();
+		return instance;
 	}
 
 	//Not using unordered_map for clients because incompatibility between g++4.6 and g++4.9
@@ -45,6 +51,7 @@ public:
 		}
 	}
 	void CreateDB() {
+		//TODO: reclaim dtranxHelper
 		Util::DtranxHelper *dtranxHelper = new Util::DtranxHelper("60000",
 				ips_);
 		btreeInt = new BTreeInt(dtranxHelper);
@@ -54,7 +61,9 @@ public:
 	}
 
 	void DestroyDB() {
-		delete btreeInt;
+		if(btreeInt){
+			delete btreeInt;
+		}
 	}
 
 	void Close() {
@@ -94,10 +103,10 @@ public:
 	int Insert(std::vector<KVPair> writes) {
 		assert(!writes.empty());
 		uint64_t realKey = StringKeyToInt(writes[0].first);
-		//std::cout << "insert key: " << realKey<<std::endl;
+		std::cout << "insert key: " << realKey<<std::endl;
 		bool result = btreeInt->insert_unique(realKey);
-		//std::cout << "insert key: " << realKey << " "
-		//		<< (result ? "true" : "false") << std::endl;
+		std::cout << "insert key: " << realKey << " "
+				<< (result ? "true" : "false") << std::endl;
 		return kOK;
 	}
 
