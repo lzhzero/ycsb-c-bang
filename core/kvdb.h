@@ -16,7 +16,7 @@ namespace ycsbc {
  */
 class KVDB: public DB_BASE {
 public:
-	virtual void Init(std::vector<std::string> ips) = 0;
+	virtual void Init(std::vector<std::string> ips, std::string selfAddress) = 0;
 	///
 	/// Reads a record from the database.
 	///

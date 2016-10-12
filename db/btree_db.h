@@ -23,45 +23,48 @@ public:
 	}
 
 	BtreeDB(const BtreeDB& other) {
-		//std::cout << "btree copy contructor is called" << std::endl;
+		std::cout << "btree copy constructor is called" << std::endl;
 		ips_ = other.ips_;
+		selfAddress_ = other.selfAddress_;
 		clients_ = other.clients_;
 		btreeInt = other.btreeInt;
 	}
 
-	~BtreeDB(){
+	~BtreeDB() {
 		DestroyDB();
 	}
 
-	KVDB* Clone(){
+	KVDB* Clone() {
 		BtreeDB* instance = new BtreeDB(*this);
 		instance->CreateDB();
 		return instance;
 	}
 
 	//Not using unordered_map for clients because incompatibility between g++4.6 and g++4.9
-	void Init(std::vector<std::string> ips) {
+	void Init(std::vector<std::string> ips, std::string selfAddress) {
+		selfAddress_ = selfAddress;
 		ips_ = ips;
 		std::shared_ptr<zmq::context_t> context = std::make_shared<
 				zmq::context_t>(100);
+		int startPort = 30030;
 		for (auto it = ips.begin(); it != ips.end(); ++it) {
-			clients_.push_back(
-					new DTranx::Client::Client(*it, "60000", context));
-
+			clients_.push_back(new DTranx::Client::Client(*it, 30000, context));
+			assert(clients_.back()->Bind(selfAddress, startPort++));
 		}
 	}
 	void CreateDB() {
 		//TODO: reclaim dtranxHelper
-		Util::DtranxHelper *dtranxHelper = new Util::DtranxHelper("60000",
-				ips_);
-		btreeInt = new BTreeInt(dtranxHelper);
+		std::cout << "CreateDB called" << std::endl;
+		Util::DtranxHelper *dtranxHelper = new Util::DtranxHelper(30000, ips_,
+				selfAddress_, 30080);
 		for (size_t i = 0; i < clients_.size(); ++i) {
 			dtranxHelper->InitClients(ips_[i], clients_[i]);
 		}
+		btreeInt = new BTreeInt(dtranxHelper);
 	}
 
 	void DestroyDB() {
-		if(btreeInt){
+		if (btreeInt) {
 			delete btreeInt;
 		}
 	}
@@ -82,7 +85,7 @@ public:
 		assert(!keys.empty());
 		uint64_t realKey = StringKeyToInt(keys[0]);
 
-		bool result = btreeInt->find_unique(realKey);
+		btreeInt->find_unique(realKey);
 		//std::cout << "read key: " << realKey << " "
 		//		<< (result ? "true" : "false") << std::endl;
 		return kOK;
@@ -103,7 +106,7 @@ public:
 	int Insert(std::vector<KVPair> writes) {
 		assert(!writes.empty());
 		uint64_t realKey = StringKeyToInt(writes[0].first);
-		std::cout << "insert key: " << realKey<<std::endl;
+		std::cout << "insert key: " << realKey << std::endl;
 		bool result = btreeInt->insert_unique(realKey);
 		std::cout << "insert key: " << realKey << " "
 				<< (result ? "true" : "false") << std::endl;
@@ -113,6 +116,7 @@ public:
 private:
 	std::vector<DTranx::Client::Client*> clients_;
 	std::vector<std::string> ips_;
+	std::string selfAddress_;
 	BTreeInt *btreeInt;
 };
 

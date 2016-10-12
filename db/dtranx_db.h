@@ -20,36 +20,81 @@ class DtranxDB: public KVDB {
 public:
 	DtranxDB() {
 		shareDB = true;
+		CurClientSetIndex = 0;
+		ClientSetNum = 10;
 	}
 
 	DtranxDB(const DtranxDB& other) {
 		std::cout << "DtranxDB copy contructor is called" << std::endl;
-		ips_ = other.ips_;
+		servers_ = other.servers_;
 		clients_ = other.clients_;
+		CurClientSetIndex = other.CurClientSetIndex;
+		ClientSetNum = other.ClientSetNum;
 	}
 
 	KVDB* Clone() {
+		std::cout << "DTranxDB clone called" << std::endl;
 		return new DtranxDB(*this);
 	}
 
 	//Not using unordered_map for clients because incompatibility between g++4.6 and g++4.9
-	void Init(std::vector<std::string> ips) {
-		ips_ = ips;
+	void Init(std::vector<std::string> servers, std::string selfAddress) {
 		std::shared_ptr<zmq::context_t> context = std::make_shared<
 				zmq::context_t>(100);
-		for (auto it = ips.begin(); it != ips.end(); ++it) {
-			clients_.push_back(
-					new DTranx::Client::Client(*it, "60000", context));
+		selfAddress_ = selfAddress;
+		servers_ = servers;
+		std::vector<std::vector<int> > localPorts;
+		localPorts.push_back(std::vector<int>());
+		int startPort = 30030;
+		for (auto it = servers.begin(); it != servers.end(); ++it) {
+			localPorts.back().push_back(startPort++);
+		}
+		localPorts.push_back(std::vector<int>());
+		for (auto it = servers.begin(); it != servers.end(); ++it) {
+			localPorts.back().push_back(startPort++);
+		}
 
+		std::vector<std::string> remotePorts;
+		remotePorts.push_back("30000");
+		remotePorts.push_back("30001");
+		CurClientSetIndex = 0;
+		ClientSetNum = 2;
+		for (int curClientSetIndex = 0; curClientSetIndex < remotePorts.size();
+				++curClientSetIndex) {
+			std::vector<DTranx::Client::Client*> ClientSet;
+			for (int serverIndex = 0; serverIndex < servers_.size();
+					++serverIndex) {
+				std::cout << "creating clients connecting to ip "
+						<< servers_[serverIndex] << " port "
+						<< remotePorts[curClientSetIndex] << std::endl;
+				ClientSet.push_back(
+						new DTranx::Client::Client(servers_[serverIndex],
+								remotePorts[curClientSetIndex], context));
+				std::cout << "creating clients binding to ip " << selfAddress
+						<< " port "
+						<< localPorts[curClientSetIndex][serverIndex]
+						<< std::endl;
+				assert(
+						ClientSet.back()->Bind(selfAddress,
+								std::to_string(
+										localPorts[curClientSetIndex][serverIndex])));
+			}
+			clients_.push_back(ClientSet);
 		}
 	}
 	DTranx::Client::ClientTranx *CreateClientTranx() {
+		/*
+		 * context, selfAddress, port will never be used in ClientTranx
+		 */
 		DTranx::Client::ClientTranx *clientTranx =
-				new DTranx::Client::ClientTranx("60000", NULL, ips_);
-		assert(ips_.size() == clients_.size());
-		for (size_t i = 0; i < clients_.size(); ++i) {
-			clientTranx->InitClients(ips_[i], clients_[i]);
+				new DTranx::Client::ClientTranx("30000", NULL, servers_,
+						selfAddress_, "30080");
+		assert(servers_.size() == clients_[CurClientSetIndex].size());
+		for (size_t i = 0; i < clients_[CurClientSetIndex].size(); ++i) {
+			clientTranx->InitClients(servers_[i],
+					clients_[CurClientSetIndex][i]);
 		}
+		CurClientSetIndex = (CurClientSetIndex + 1) % ClientSetNum;
 		return clientTranx;
 	}
 
@@ -59,7 +104,9 @@ public:
 
 	void Close() {
 		for (auto it = clients_.begin(); it != clients_.end(); ++it) {
-			delete *it;
+			for (auto it_b = it->begin(); it_b != it->end(); ++it_b) {
+				delete *it_b;
+			}
 		}
 	}
 
@@ -172,8 +219,15 @@ public:
 		}
 	}
 private:
-	std::vector<DTranx::Client::Client*> clients_;
-	std::vector<std::string> ips_;
+	/*
+	 * clients_ is a vector of vector of Clients, each outside vector is a list of clients that connects to a certain port
+	 * to the servers. dtranx_db basically uses each set of the clients to make the full of the network bandwidth.
+	 */
+	std::vector<std::vector<DTranx::Client::Client*>> clients_;
+	std::vector<std::string> servers_;
+	std::string selfAddress_;
+	int CurClientSetIndex;
+	int ClientSetNum;
 };
 
 } // ycsbc

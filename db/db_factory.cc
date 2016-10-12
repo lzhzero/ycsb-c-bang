@@ -32,9 +32,9 @@ DB_BASE* DBFactory::CreateDB(const std::string name) {
 		return new DtranxDB;
 	} else if (name == "hyperdex") {
 		return new HyperdexDB;
-	}else if (name == "btree") {
+	} else if (name == "btree") {
 		return new BtreeDB;
-	}  else
+	} else
 		return NULL;
 }
 

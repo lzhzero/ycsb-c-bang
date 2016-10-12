@@ -1,6 +1,6 @@
-CC=g++-4.6
-CFLAGS=-std=c++0x -rdynamic -g -Wall -pthread -I./
-LDFLAGS= -lpthread -ltbb -ldtranx -lprotobuf -lzmq -lhyperdex-client -lbtree
+CC=g++-4.9
+CFLAGS=-std=c++0x -rdynamic -Wl,--no-as-needed -pthread -g -Wall -pthread -I./
+LDFLAGS= -lpthread -ltbb -ldtranx -lprotobuf -lzmq -lhyperdex-client -lboost_thread -lboost_system -lboost_chrono -lbtree
 SUBDIRS=core db
 SUBSRCS=$(wildcard core/*.cc) $(wildcard db/*.cc)
 OBJECTS=$(SUBSRCS:.cc=.o)

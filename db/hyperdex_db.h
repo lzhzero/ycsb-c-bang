@@ -27,7 +27,7 @@ public:
 		return new HyperdexDB(*this);
 	}
 
-	void Init(std::vector<std::string> ips) {
+	void Init(std::vector<std::string> ips, std::string selfAddress = "") {
 		ips_ = ips;
 		assert(ips_.size() > 0);
 		client_ = hyperdex_client_create(ips[0].c_str(), PORT);

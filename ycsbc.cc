@@ -18,7 +18,7 @@
 #include "core/client.h"
 #include "core/core_workload.h"
 #include "db/db_factory.h"
-#include "db/btree_db.h"
+#include "DTranx/Util/Log.h"
 
 using namespace std;
 //aggregate throughput during the previous 20 seconds
@@ -95,6 +95,10 @@ bool is_loading, std::atomic<int> *sum) {
 }
 
 int main(const int argc, const char *argv[]) {
+
+	 DTranx::Util::Log::setLogPolicy( { { "Client", "PROFILE" }, { "Server", "PROFILE" }, { "Tranx",
+	 "PROFILE" }, { "Storage", "PROFILE" }, { "RPC", "PROFILE" }, {"Util", "PROFILE"}, { "Log", "PROFILE" } });
+
 	utils::Properties props;
 	string file_name = ParseCommandLine(argc, argv, props);
 
@@ -124,7 +128,7 @@ int main(const int argc, const char *argv[]) {
 	if (dbData.isKV) {
 		dbData.kvdb = dynamic_cast<ycsbc::KVDB*>(ycsbc::DBFactory::CreateDB(
 				props["dbname"]));
-		dbData.kvdb->Init(dbData.ips);
+		dbData.kvdb->Init(dbData.ips, props["selfAddress"]);
 	} else {
 		dbData.db = dynamic_cast<ycsbc::DB*>(ycsbc::DBFactory::CreateDB(
 				props["dbname"]));
@@ -150,7 +154,6 @@ int main(const int argc, const char *argv[]) {
 	}
 
 	const int num_threads = stoi(props.GetProperty("threadcount", "1"));
-
 	/*
 	 *  Loads data
 	 */
@@ -279,6 +282,14 @@ string ParseCommandLine(int argc, const char *argv[],
 			}
 			props.SetProperty("genwork", argv[argindex]);
 			argindex++;
+		} else if (strcmp(argv[argindex], "-s") == 0) {
+			argindex++;
+			if (argindex >= argc) {
+				UsageMessage(argv[0]);
+				exit(0);
+			}
+			props.SetProperty("selfAddress", argv[argindex]);
+			argindex++;
 		} else if (strcmp(argv[argindex], "-db") == 0) {
 			argindex++;
 			if (argindex >= argc) {
@@ -340,6 +351,7 @@ void UsageMessage(const char *command) {
 	cout
 			<< "  -C clusterfile: only used for dtranx db, load ip addresses from the given file."
 			<< endl;
+	cout << "  -s selfAddress: self address that clients bind to." << endl;
 	cout
 			<< "                   be specified, and will be processed in the order specified"
 			<< endl;

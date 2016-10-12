@@ -1,4 +1,4 @@
-CC=g++-4.6
+CC=g++-4.9
 CFLAGS=-std=c++0x -c -g -Wall
 SOURCES=$(wildcard *.cc)
 OBJECTS=$(SOURCES:.cc=.o)
