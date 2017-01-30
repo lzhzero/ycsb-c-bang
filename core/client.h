@@ -24,8 +24,8 @@ public:
 	}
 
 	Client(TableDB *db_, KVDB *kv_db, CoreWorkload &wl) :
-			db_(db_), kv_db_(kv_db), workload_(wl), isKV(false)  {
-		if(kv_db_){
+			db_(db_), kv_db_(kv_db), workload_(wl), isKV(false) {
+		if (kv_db_) {
 			isKV = true;
 		}
 	}
@@ -45,17 +45,23 @@ protected:
 	virtual int TransactionUpdate();
 	virtual int TransactionInsert();
 
-
 	TableDB *db_;
 	KVDB *kv_db_;
 	CoreWorkload &workload_;
+
 	bool isKV;
 };
 
 inline bool Client::DoInsert() {
 	if (isKV) {
-		std::vector<DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
-		return kv_db_->Insert(kvs) == DB_BASE::kOK;
+		if (kv_db_->isKeyTypeString()) {
+			std::vector<DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
+			return kv_db_->Insert(kvs) == DB_BASE::kOK;
+		} else {
+			std::vector<DB_BASE::KVPairInt> kvs =
+					workload_.NextTransactionKVsInt();
+			return kv_db_->Insert(kvs) == DB_BASE::kOK;
+		}
 	}
 	assert(db_ != NULL);
 	std::string key = workload_.NextSequenceKey();
@@ -93,67 +99,92 @@ inline bool Client::DoTransaction() {
 	return (status == DB_BASE::kOK);
 }
 
+/*
+ * TableDB, KVDB
+ */
 inline int Client::TransactionRead() {
 	if (isKV) {
 		assert(kv_db_ != NULL);
-		std::vector<std::string> keys = workload_.NextTransactionKeys();
-		return kv_db_->Read(keys);
-	}
-	assert(db_ != NULL);
-	const std::string &table = workload_.NextTable();
-	const std::string &key = workload_.NextTransactionKey();
-	std::vector<DB_BASE::KVPair> result;
-	if (!workload_.read_all_fields()) {
-		std::vector<std::string> fields;
-		fields.push_back("field" + workload_.NextFieldName());
-		return db_->Read(table, key, &fields, result);
+		if (kv_db_->isKeyTypeString()) {
+			std::vector<std::string> keys = workload_.NextTransactionKeys();
+			return kv_db_->Read(keys);
+		} else {
+			std::vector<uint64_t> keys = workload_.NextTransactionKeysInt();
+			return kv_db_->Read(keys);
+		}
 	} else {
-		return db_->Read(table, key, NULL, result);
+		assert(db_ != NULL);
+		const std::string &table = workload_.NextTable();
+		const std::string &key = workload_.NextTransactionKey();
+		std::vector<DB_BASE::KVPair> result;
+		if (!workload_.read_all_fields()) {
+			std::vector<std::string> fields;
+			fields.push_back("field" + workload_.NextFieldName());
+			return db_->Read(table, key, &fields, result);
+		} else {
+			return db_->Read(table, key, NULL, result);
+		}
 	}
 }
+
+/*
+ * KVDB
+ */
 inline int Client::TransactionSnapshotRead() {
 	assert(kv_db_ != NULL);
 	std::vector<std::string> keys = workload_.NextTransactionKeys();
 	return kv_db_->ReadSnapshot(keys);
 }
 
+/*
+ * TableDB, KVDB
+ */
 inline int Client::TransactionReadModifyWrite() {
 	if (isKV) {
 		assert(kv_db_ != NULL);
-		std::vector<std::string> keys = workload_.NextTransactionKeys();
-		keys.pop_back();
-		std::string line = "update ";
-		for (auto it = keys.begin(); it != keys.end(); ++it) {
-			line += (*it) + " ";
+		if (kv_db_->isKeyTypeString()) {
+			std::vector<std::string> keys = workload_.NextTransactionKeys();
+			keys.pop_back();
+			std::vector<DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
+			std::vector<DB_BASE::KVPair> kvs_filter;
+			kvs_filter.push_back(kvs[0]);
+			return kv_db_->ReadWrite(keys, kvs_filter);
+		} else {
+			std::vector<uint64_t> keys = workload_.NextTransactionKeysInt();
+			keys.pop_back();
+			std::vector<DB_BASE::KVPairInt> kvs =
+					workload_.NextTransactionKVsInt();
+			std::vector<DB_BASE::KVPairInt> kvs_filter;
+			kvs_filter.push_back(kvs[0]);
+			return kv_db_->ReadWrite(keys, kvs_filter);
 		}
-		line += "after ";
-		std::vector<DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
-		std::vector<DB_BASE::KVPair> kvs_filter;
-		kvs_filter.push_back(kvs[0]);
-		return kv_db_->ReadWrite(keys, kvs_filter);
-	}
-	assert(db_ != NULL);
-	const std::string &table = workload_.NextTable();
-	const std::string &key = workload_.NextTransactionKey();
-	std::vector<DB_BASE::KVPair> result;
-
-	if (!workload_.read_all_fields()) {
-		std::vector<std::string> fields;
-		fields.push_back("field" + workload_.NextFieldName());
-		db_->Read(table, key, &fields, result);
 	} else {
-		db_->Read(table, key, NULL, result);
-	}
+		assert(db_ != NULL);
+		const std::string &table = workload_.NextTable();
+		const std::string &key = workload_.NextTransactionKey();
+		std::vector<DB_BASE::KVPair> result;
 
-	std::vector<DB_BASE::KVPair> values;
-	if (workload_.write_all_fields()) {
-		workload_.BuildValues(values);
-	} else {
-		workload_.BuildUpdate(values);
+		if (!workload_.read_all_fields()) {
+			std::vector<std::string> fields;
+			fields.push_back("field" + workload_.NextFieldName());
+			db_->Read(table, key, &fields, result);
+		} else {
+			db_->Read(table, key, NULL, result);
+		}
+
+		std::vector<DB_BASE::KVPair> values;
+		if (workload_.write_all_fields()) {
+			workload_.BuildValues(values);
+		} else {
+			workload_.BuildUpdate(values);
+		}
+		return db_->Update(table, key, values);
 	}
-	return db_->Update(table, key, values);
 }
 
+/*
+ * TableDB
+ */
 inline int Client::TransactionScan() {
 	assert(db_ != NULL);
 	const std::string &table = workload_.NextTable();
@@ -169,36 +200,56 @@ inline int Client::TransactionScan() {
 	}
 }
 
+/*
+ * TableDB, KVDB
+ */
 inline int Client::TransactionUpdate() {
 	if (isKV) {
 		assert(kv_db_ != NULL);
-		std::vector<DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
-		return kv_db_->Update(kvs);
-	}
-	assert(db_ != NULL);
-	const std::string &table = workload_.NextTable();
-	const std::string &key = workload_.NextTransactionKey();
-	std::vector<DB_BASE::KVPair> values;
-	if (workload_.write_all_fields()) {
-		workload_.BuildValues(values);
+		if (kv_db_->isKeyTypeString()) {
+			std::vector<DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
+			return kv_db_->Update(kvs);
+		} else {
+			std::vector<DB_BASE::KVPairInt> kvs =
+					workload_.NextTransactionKVsInt();
+			return kv_db_->Update(kvs);
+		}
 	} else {
-		workload_.BuildUpdate(values);
+		assert(db_ != NULL);
+		const std::string &table = workload_.NextTable();
+		const std::string &key = workload_.NextTransactionKey();
+		std::vector<DB_BASE::KVPair> values;
+		if (workload_.write_all_fields()) {
+			workload_.BuildValues(values);
+		} else {
+			workload_.BuildUpdate(values);
+		}
+		return db_->Update(table, key, values);
 	}
-	return db_->Update(table, key, values);
 }
 
+/*
+ * TableDB, KVDB
+ */
 inline int Client::TransactionInsert() {
 	if (isKV) {
 		assert(kv_db_ != NULL);
-		std::vector<DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
-		return kv_db_->Insert(kvs);
+		if (kv_db_->isKeyTypeString()) {
+			std::vector<DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
+			return kv_db_->Insert(kvs);
+		} else {
+			std::vector<DB_BASE::KVPairInt> kvs =
+					workload_.NextTransactionKVsInt();
+			return kv_db_->Insert(kvs);
+		}
+	} else {
+		assert(db_ != NULL);
+		const std::string &table = workload_.NextTable();
+		const std::string &key = workload_.NextSequenceKey();
+		std::vector<DB_BASE::KVPair> values;
+		workload_.BuildValues(values);
+		return db_->Insert(table, key, values);
 	}
-	assert(db_ != NULL);
-	const std::string &table = workload_.NextTable();
-	const std::string &key = workload_.NextSequenceKey();
-	std::vector<DB_BASE::KVPair> values;
-	workload_.BuildValues(values);
-	return db_->Insert(table, key, values);
 }
 
 } // ycsbc

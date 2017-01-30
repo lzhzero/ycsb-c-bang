@@ -13,6 +13,7 @@ namespace ycsbc {
 class DB_BASE {
 public:
 	typedef std::pair<std::string, std::string> KVPair;
+	typedef std::pair<uint64_t, std::string> KVPairInt;
 	static const int kOK = 0;
 	static const int kErrorNoData = 1;
 	static const int kErrorConflict = 2;

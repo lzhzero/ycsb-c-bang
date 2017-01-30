@@ -2,7 +2,9 @@
  * Author: Ning Gao(nigo9731@colorado.edu)
  *
  * KVDB is key value databases, it can be shared among YCSB client threads or Cloned.
- * Sharing is handled by this class and users only call GetDBInstance/DestroyDBInstance to get an instance
+ *
+ * 1. Sharing is handled by this class and users only call GetDBInstance/DestroyDBInstance to get an instance
+ * 2. KVDB is able to feed different key types, e.g. btree db asks for plain integer values
  *
  * Before GetDBInstance, call Init
  * After DestroyDBInstance, call Close
@@ -37,9 +39,21 @@ public:
 	 * @param keys are a list of read keys
 	 * @return Zero on success, or a non-zero error code on error/record-miss.
 	 */
-	virtual int Read(std::vector<std::string> keys) = 0;
+	virtual int Read(std::vector<std::string> keys) {
+		return kOK;
+	}
+	virtual int Read(std::vector<uint64_t> keys) {
+		return kOK;
+	}
 
-	virtual int ReadSnapshot(std::vector<std::string> keys) = 0;
+	virtual int ReadSnapshot(std::vector<std::string> keys) {
+		return kOK;
+	}
+
+	virtual int ReadSnapshot(std::vector<uint64_t> keys) {
+		return kOK;
+	}
+
 	/*
 	 * 	ReadWrite a record in the database.
 	 * Field/value pairs in the specified vector are written to the record,
@@ -49,7 +63,16 @@ public:
 	 * @return Zero on success, a non-zero error code on error.
 	 */
 	virtual int ReadWrite(std::vector<std::string> reads,
-			std::vector<KVPair> writes) = 0;
+			std::vector<KVPair> writes) {
+		return kOK;
+	}
+	;
+
+	virtual int ReadWrite(std::vector<uint64_t> reads,
+			std::vector<KVPairInt> writes) {
+		return kOK;
+	}
+	;
 
 	/*
 	 *  Inserts a record into the database.
@@ -58,9 +81,21 @@ public:
 	 *  @param writes, a list of key value pair to insert.
 	 *  @return Zero on success, a non-zero error code on error.
 	 */
-	virtual int Insert(std::vector<KVPair> writes) = 0;
+	virtual int Insert(std::vector<KVPair> writes) {
+		return kOK;
+	}
 
-	virtual int Update(std::vector<KVPair> writes) = 0;
+	virtual int Insert(std::vector<KVPairInt> writes) {
+		return kOK;
+	}
+
+	virtual int Update(std::vector<KVPair> writes) {
+		return kOK;
+	}
+
+	virtual int Update(std::vector<KVPairInt> writes) {
+		return kOK;
+	}
 
 	virtual ~KVDB() {
 	}
@@ -85,11 +120,22 @@ public:
 			delete kvdb;
 		}
 	}
+
+	bool isKeyTypeString() const {
+		return keyTypeString;
+	}
+
+	void setKeyTypeString(bool keyTypeString) {
+		this->keyTypeString = keyTypeString;
+	}
+
 protected:
 	/*
 	 * shareDB means if we want to share DB instance among threads
+	 * isKeyTypeString means whether the key is string type or integer
 	 */
 	bool shareDB;
+	bool keyTypeString;
 };
 
 } // ycsbc

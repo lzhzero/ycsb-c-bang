@@ -20,7 +20,8 @@ using std::endl;
 class DtranxDB: public KVDB {
 public:
 	DtranxDB() {
-		shareDB = true;
+		shareDB = false;
+		keyTypeString = true;
 		CurClientSetIndex = 0;
 		ClientSetNum = 10;
 	}
@@ -29,8 +30,13 @@ public:
 		cout << "DtranxDB copy contructor is called" << endl;
 		servers_ = other.servers_;
 		clients_ = other.clients_;
+		selfAddress_ = other.selfAddress_;
 		CurClientSetIndex = other.CurClientSetIndex;
 		ClientSetNum = other.ClientSetNum;
+		clientCache = std::make_shared<DTranx::Client::ClientCache>();
+		clientCache->SetThreadSafety(true);
+		shareDB = other.shareDB;
+		keyTypeString = other.keyTypeString;
 	}
 
 	KVDB* Clone() {
@@ -81,14 +87,17 @@ public:
 			}
 			clients_.push_back(ClientSet);
 		}
+		clientCache = std::make_shared<DTranx::Client::ClientCache>();
+		clientCache->SetThreadSafety(true);
 	}
 	DTranx::Client::ClientTranx *CreateClientTranx() {
 		/*
 		 * context, selfAddress, port will never be used in ClientTranx
 		 */
 		DTranx::Client::ClientTranx *clientTranx =
-				new DTranx::Client::ClientTranx(DTRANX_SERVER_PORT, NULL, servers_,
-						selfAddress_, LOCAL_USABLE_PORT_START);
+				new DTranx::Client::ClientTranx(DTRANX_SERVER_PORT, NULL,
+						servers_, clientCache, selfAddress_,
+						LOCAL_USABLE_PORT_START, true);
 		assert(servers_.size() == clients_[CurClientSetIndex].size());
 		for (size_t i = 0; i < clients_[CurClientSetIndex].size(); ++i) {
 			clientTranx->InitClients(servers_[i],
@@ -225,6 +234,7 @@ private:
 	std::vector<std::vector<DTranx::Client::Client*>> clients_;
 	std::vector<std::string> servers_;
 	std::string selfAddress_;
+	std::shared_ptr<DTranx::Client::ClientCache> clientCache;
 	int CurClientSetIndex;
 	int ClientSetNum;
 };

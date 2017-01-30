@@ -26,6 +26,7 @@ public:
 		 */
 		btreeInt = NULL;
 		shareDB = false;
+		keyTypeString = false;
 	}
 
 	BtreeDB(const BtreeDB& other) {
@@ -48,8 +49,9 @@ public:
 		/*
 		 * dtranxHelper will be reclaimed by BTree class
 		 */
-		Util::DtranxHelper *dtranxHelper = new Util::DtranxHelper(DTRANX_SERVER_PORT,
-				instance->ips_, instance->selfAddress_, LOCAL_USABLE_PORT_START);
+		Util::DtranxHelper *dtranxHelper = new Util::DtranxHelper(
+				DTRANX_SERVER_PORT, instance->ips_, instance->selfAddress_,
+				LOCAL_USABLE_PORT_START);
 		for (size_t i = 0; i < instance->clients_.size(); ++i) {
 			dtranxHelper->InitClients(instance->ips_[i], instance->clients_[i]);
 		}
@@ -68,7 +70,9 @@ public:
 		std::shared_ptr<zmq::context_t> context = std::make_shared<
 				zmq::context_t>(1);
 		for (auto it = ips.begin(); it != ips.end(); ++it) {
-			clients_.push_back(new DTranx::Client::Client(*it, DTRANX_SERVER_PORT, context));
+			clients_.push_back(
+					new DTranx::Client::Client(*it, DTRANX_SERVER_PORT,
+							context));
 			assert(clients_.back()->Bind(selfAddress, localStartPort++));
 		}
 	}
@@ -79,41 +83,28 @@ public:
 		}
 	}
 
-	uint64_t StringKeyToInt(std::string stringKey) {
-		return std::stoull(stringKey.substr(4));
-	}
-
-	int Read(std::vector<std::string> keys) {
+	int Read(std::vector<uint64_t> keys) {
 		std::string value;
-
 		assert(!keys.empty());
-		uint64_t realKey = StringKeyToInt(keys[0]);
-
-		btreeInt->find_unique(realKey);
-		//std::cout << "read key: " << realKey << " "
-		//		<< (result ? "true" : "false") << std::endl;
+		btreeInt->find_unique(keys[0]);
 		return kOK;
 	}
 
-	int ReadSnapshot(std::vector<std::string> keys) {
+	int ReadSnapshot(std::vector<uint64_t> keys) {
 		return kOK;
 	}
 
-	int Update(std::vector<KVPair> writes) {
+	int Update(std::vector<KVPairInt> writes) {
 		return kOK;
 	}
 
-	int ReadWrite(std::vector<std::string> reads, std::vector<KVPair> writes) {
+	int ReadWrite(std::vector<uint64_t> reads, std::vector<KVPairInt> writes) {
 		return kOK;
 	}
 
-	int Insert(std::vector<KVPair> writes) {
+	int Insert(std::vector<KVPairInt> writes) {
 		assert(!writes.empty());
-		uint64_t realKey = StringKeyToInt(writes[0].first);
-		std::cout << "insert key: " << realKey << std::endl;
-		bool result = btreeInt->insert_unique(realKey);
-		std::cout << "insert key: " << realKey << " "
-				<< (result ? "true" : "false") << std::endl;
+		btreeInt->insert_unique(writes[0].first);
 		return kOK;
 	}
 

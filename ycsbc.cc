@@ -44,14 +44,17 @@ struct DBData {
  * Thread function
  * for DTranx(key value store), DB is independently instantiated among threads while DTranx Clients are shared.
  */
-void DelegateClient(DBData *dbData, ycsbc::CoreWorkload *wl, const int num_ops,
-bool is_loading, std::atomic<int> *sum) {
+void DelegateClient(DBData *dbData, utils::Properties *props, const int num_ops,
+bool is_loading, std::atomic<int> *sum, std::atomic<int> *sum_succ) {
 	/*
 	 * when testing hyperdexDB, create a kvdb instance for each thread
 	 * because each thread needs one socket connection to reach the max throughput
 	 */
 	//ycsbc::KVDB* kvdb = dynamic_cast<ycsbc::KVDB*>(ycsbc::DBFactory::CreateDB("hyperdex"));
 	//kvdb->Init(dbData->ips);
+	ycsbc::CoreWorkload wl;
+	wl.Init(*props);
+
 	if (dbData->isKV) {
 		assert(dbData->kvdb != NULL);
 	} else {
@@ -59,17 +62,18 @@ bool is_loading, std::atomic<int> *sum) {
 	}
 	if (dbData->isKV) {
 		ycsbc::KVDB *kvdb = dbData->kvdb->GetDBInstance();
-		ycsbc::Client client(dbData->tabledb, kvdb, *wl);
+		ycsbc::Client client(dbData->tabledb, kvdb, wl);
 		for (int i = 0; i < num_ops; ++i) {
 			if (is_loading) {
 				if (client.DoInsert()) {
-					sum->operator ++();
+					sum_succ->operator ++();
 				}
 			} else {
 				if (client.DoTransaction()) {
-					sum->operator ++();
+					sum_succ->operator ++();
 				}
 			}
+			sum->operator ++();
 		}
 		dbData->kvdb->DestroyDBInstance(kvdb);
 		return;
@@ -117,7 +121,8 @@ int main(const int argc, const char *argv[]) {
 		 * port usage is somewhat static and no need to add configuration file
 		 * for ycsb program
 		 */
-		dbData.kvdb->Init(dbData.ips, props["selfAddress"], LOCAL_USABLE_PORT_START);
+		dbData.kvdb->Init(dbData.ips, props["selfAddress"],
+				LOCAL_USABLE_PORT_START);
 	} else {
 		dbData.tabledb =
 				dynamic_cast<ycsbc::TableDB*>(ycsbc::DBFactory::CreateDB(
@@ -150,16 +155,20 @@ int main(const int argc, const char *argv[]) {
 	vector<std::thread> threads;
 	int total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
 	std::atomic<int> sums[num_threads];
+	std::atomic<int> sums_succ[num_threads];
 	for (int i = 0; i < num_threads; ++i) {
 		sums[i].store(0);
+	}
+	for (int i = 0; i < num_threads; ++i) {
+		sums_succ[i].store(0);
 	}
 	int sum = 0;
 	if (total_ops >= num_threads) {
 		for (int i = 0; i < num_threads; ++i) {
 			threads.push_back(
-					std::thread(DelegateClient, &dbData, &wl,
+					std::thread(DelegateClient, &dbData, &props,
 							total_ops / num_threads,
-							true, &sums[i]));
+							true, &sums[i], &sums_succ[i]));
 		}
 		sum = 0;
 		std::chrono::system_clock::time_point start =
@@ -190,12 +199,15 @@ int main(const int argc, const char *argv[]) {
 	}
 	sum = 0;
 	for (int i = 0; i < num_threads; ++i) {
-		sum += sums[i].load();
+		sum += sums_succ[i].load();
 	}
 	cerr << "# Loading records:\t" << sum << endl;
 
 	for (int i = 0; i < num_threads; ++i) {
 		sums[i].store(0);
+	}
+	for (int i = 0; i < num_threads; ++i) {
+		sums_succ[i].store(0);
 	}
 
 	/*
@@ -206,9 +218,9 @@ int main(const int argc, const char *argv[]) {
 	timer.Start();
 	for (int i = 0; i < num_threads; ++i) {
 		threads.push_back(
-				std::thread(DelegateClient, &dbData, &wl,
+				std::thread(DelegateClient, &dbData, &props,
 						total_ops / num_threads,
-						false, &sums[i]));
+						false, &sums[i], &sums_succ[i]));
 	}
 	sum = 0;
 	int prev = 0;

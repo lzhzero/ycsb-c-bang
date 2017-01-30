@@ -15,6 +15,7 @@ class HyperdexDB: public KVDB {
 public:
 	HyperdexDB() {
 		shareDB = true;
+		keyTypeString = true;
 	}
 
 	HyperdexDB(const HyperdexDB& other) {
