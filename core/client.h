@@ -10,13 +10,12 @@
 #define YCSB_C_CLIENT_H_
 
 #include <string>
-#include "db.h"
+#include "db/table_db.h"
 #include "db/dtranx_db.h"
 #include "core_workload.h"
 #include "utils.h"
 
 namespace ycsbc {
-
 class Client {
 public:
 
@@ -24,7 +23,7 @@ public:
 			db_(NULL), kv_db_(NULL), workload_(wl), isKV(false) {
 	}
 
-	Client(DB *db_, KVDB *kv_db, CoreWorkload &wl) :
+	Client(TableDB *db_, KVDB *kv_db, CoreWorkload &wl) :
 			db_(db_), kv_db_(kv_db), workload_(wl), isKV(false)  {
 		if(kv_db_){
 			isKV = true;
@@ -47,7 +46,7 @@ protected:
 	virtual int TransactionInsert();
 
 
-	DB *db_;
+	TableDB *db_;
 	KVDB *kv_db_;
 	CoreWorkload &workload_;
 	bool isKV;
@@ -55,14 +54,14 @@ protected:
 
 inline bool Client::DoInsert() {
 	if (isKV) {
-		std::vector<DB::KVPair> kvs = workload_.NextTransactionKVs();
-		return kv_db_->Insert(kvs) == DB::kOK;
+		std::vector<DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
+		return kv_db_->Insert(kvs) == DB_BASE::kOK;
 	}
 	assert(db_ != NULL);
 	std::string key = workload_.NextSequenceKey();
-	std::vector<DB::KVPair> pairs;
+	std::vector<DB_BASE::KVPair> pairs;
 	workload_.BuildValues(pairs);
-	return (db_->Insert(workload_.NextTable(), key, pairs) == DB::kOK);
+	return (db_->Insert(workload_.NextTable(), key, pairs) == DB_BASE::kOK);
 }
 
 inline bool Client::DoTransaction() {
@@ -91,7 +90,7 @@ inline bool Client::DoTransaction() {
 		}
 	}
 	assert(status >= 0);
-	return (status == DB::kOK);
+	return (status == DB_BASE::kOK);
 }
 
 inline int Client::TransactionRead() {
@@ -103,7 +102,7 @@ inline int Client::TransactionRead() {
 	assert(db_ != NULL);
 	const std::string &table = workload_.NextTable();
 	const std::string &key = workload_.NextTransactionKey();
-	std::vector<DB::KVPair> result;
+	std::vector<DB_BASE::KVPair> result;
 	if (!workload_.read_all_fields()) {
 		std::vector<std::string> fields;
 		fields.push_back("field" + workload_.NextFieldName());
@@ -128,15 +127,15 @@ inline int Client::TransactionReadModifyWrite() {
 			line += (*it) + " ";
 		}
 		line += "after ";
-		std::vector<DB::KVPair> kvs = workload_.NextTransactionKVs();
-		std::vector<DB::KVPair> kvs_filter;
+		std::vector<DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
+		std::vector<DB_BASE::KVPair> kvs_filter;
 		kvs_filter.push_back(kvs[0]);
-		return kv_db_->Update(keys, kvs_filter);
+		return kv_db_->ReadWrite(keys, kvs_filter);
 	}
 	assert(db_ != NULL);
 	const std::string &table = workload_.NextTable();
 	const std::string &key = workload_.NextTransactionKey();
-	std::vector<DB::KVPair> result;
+	std::vector<DB_BASE::KVPair> result;
 
 	if (!workload_.read_all_fields()) {
 		std::vector<std::string> fields;
@@ -146,7 +145,7 @@ inline int Client::TransactionReadModifyWrite() {
 		db_->Read(table, key, NULL, result);
 	}
 
-	std::vector<DB::KVPair> values;
+	std::vector<DB_BASE::KVPair> values;
 	if (workload_.write_all_fields()) {
 		workload_.BuildValues(values);
 	} else {
@@ -160,7 +159,7 @@ inline int Client::TransactionScan() {
 	const std::string &table = workload_.NextTable();
 	const std::string &key = workload_.NextTransactionKey();
 	int len = workload_.NextScanLength();
-	std::vector<std::vector<DB::KVPair>> result;
+	std::vector<std::vector<DB_BASE::KVPair>> result;
 	if (!workload_.read_all_fields()) {
 		std::vector<std::string> fields;
 		fields.push_back("field" + workload_.NextFieldName());
@@ -173,13 +172,13 @@ inline int Client::TransactionScan() {
 inline int Client::TransactionUpdate() {
 	if (isKV) {
 		assert(kv_db_ != NULL);
-		std::vector<DB::KVPair> kvs = workload_.NextTransactionKVs();
-		return kv_db_->Write(kvs);
+		std::vector<DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
+		return kv_db_->Update(kvs);
 	}
 	assert(db_ != NULL);
 	const std::string &table = workload_.NextTable();
 	const std::string &key = workload_.NextTransactionKey();
-	std::vector<DB::KVPair> values;
+	std::vector<DB_BASE::KVPair> values;
 	if (workload_.write_all_fields()) {
 		workload_.BuildValues(values);
 	} else {
@@ -191,13 +190,13 @@ inline int Client::TransactionUpdate() {
 inline int Client::TransactionInsert() {
 	if (isKV) {
 		assert(kv_db_ != NULL);
-		std::vector<DB::KVPair> kvs = workload_.NextTransactionKVs();
+		std::vector<DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
 		return kv_db_->Insert(kvs);
 	}
 	assert(db_ != NULL);
 	const std::string &table = workload_.NextTable();
 	const std::string &key = workload_.NextSequenceKey();
-	std::vector<DB::KVPair> values;
+	std::vector<DB_BASE::KVPair> values;
 	workload_.BuildValues(values);
 	return db_->Insert(table, key, values);
 }

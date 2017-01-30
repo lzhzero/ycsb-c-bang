@@ -9,7 +9,8 @@
 #include <iostream>
 #include <fstream>
 #include "DTranx/Client/ClientTranx.h"
-#include "core/kvdb.h"
+#include "db/kvdb.h"
+#include "db/commons.h"
 
 namespace ycsbc {
 
@@ -25,7 +26,7 @@ public:
 	}
 
 	DtranxDB(const DtranxDB& other) {
-		std::cout << "DtranxDB copy contructor is called" << std::endl;
+		cout << "DtranxDB copy contructor is called" << endl;
 		servers_ = other.servers_;
 		clients_ = other.clients_;
 		CurClientSetIndex = other.CurClientSetIndex;
@@ -33,51 +34,50 @@ public:
 	}
 
 	KVDB* Clone() {
-		std::cout << "DTranxDB clone called" << std::endl;
+		cout << "DTranxDB clone called" << endl;
 		return new DtranxDB(*this);
 	}
 
-	//Not using unordered_map for clients because incompatibility between g++4.6 and g++4.9
-	void Init(std::vector<std::string> servers, std::string selfAddress) {
+	/*
+	 * Not using unordered_map for clients because incompatibility between g++4.6 and g++4.9
+	 * now it's already been upgraded to g++4.9
+	 */
+	void Init(std::vector<std::string> servers, std::string selfAddress,
+			int localStartPort) {
 		std::shared_ptr<zmq::context_t> context = std::make_shared<
-				zmq::context_t>(100);
+				zmq::context_t>(1);
 		selfAddress_ = selfAddress;
 		servers_ = servers;
 		std::vector<std::vector<int> > localPorts;
 		localPorts.push_back(std::vector<int>());
-		int startPort = 30030;
 		for (auto it = servers.begin(); it != servers.end(); ++it) {
-			localPorts.back().push_back(startPort++);
+			localPorts.back().push_back(localStartPort++);
 		}
 		localPorts.push_back(std::vector<int>());
 		for (auto it = servers.begin(); it != servers.end(); ++it) {
-			localPorts.back().push_back(startPort++);
+			localPorts.back().push_back(localStartPort++);
 		}
-
-		std::vector<std::string> remotePorts;
-		remotePorts.push_back("30000");
-		remotePorts.push_back("30001");
+		std::vector<uint32_t> remotePorts;
+		remotePorts.push_back(DTRANX_SERVER_PORT);
 		CurClientSetIndex = 0;
-		ClientSetNum = 2;
-		for (int curClientSetIndex = 0; curClientSetIndex < remotePorts.size();
-				++curClientSetIndex) {
+		ClientSetNum = 1;
+		for (uint32_t curClientSetIndex = 0;
+				curClientSetIndex < remotePorts.size(); ++curClientSetIndex) {
 			std::vector<DTranx::Client::Client*> ClientSet;
-			for (int serverIndex = 0; serverIndex < servers_.size();
+			for (uint32_t serverIndex = 0; serverIndex < servers_.size();
 					++serverIndex) {
-				std::cout << "creating clients connecting to ip "
+				cout << "creating clients connecting to ip "
 						<< servers_[serverIndex] << " port "
-						<< remotePorts[curClientSetIndex] << std::endl;
+						<< remotePorts[curClientSetIndex] << endl;
 				ClientSet.push_back(
 						new DTranx::Client::Client(servers_[serverIndex],
 								remotePorts[curClientSetIndex], context));
-				std::cout << "creating clients binding to ip " << selfAddress
+				cout << "creating clients binding to ip " << selfAddress
 						<< " port "
-						<< localPorts[curClientSetIndex][serverIndex]
-						<< std::endl;
+						<< localPorts[curClientSetIndex][serverIndex] << endl;
 				assert(
 						ClientSet.back()->Bind(selfAddress,
-								std::to_string(
-										localPorts[curClientSetIndex][serverIndex])));
+								localPorts[curClientSetIndex][serverIndex]));
 			}
 			clients_.push_back(ClientSet);
 		}
@@ -87,8 +87,8 @@ public:
 		 * context, selfAddress, port will never be used in ClientTranx
 		 */
 		DTranx::Client::ClientTranx *clientTranx =
-				new DTranx::Client::ClientTranx("30000", NULL, servers_,
-						selfAddress_, "30080");
+				new DTranx::Client::ClientTranx(DTRANX_SERVER_PORT, NULL, servers_,
+						selfAddress_, LOCAL_USABLE_PORT_START);
 		assert(servers_.size() == clients_[CurClientSetIndex].size());
 		for (size_t i = 0; i < clients_[CurClientSetIndex].size(); ++i) {
 			clientTranx->InitClients(servers_[i],
@@ -113,14 +113,14 @@ public:
 	int Read(std::vector<std::string> keys) {
 		DTranx::Client::ClientTranx * clientTranx = CreateClientTranx();
 		std::string value;
-		DTranx::Storage::Status status;
+		DTranx::Service::GStatus status;
 
 		for (auto it = keys.begin(); it != keys.end(); ++it) {
 			status = clientTranx->Read(const_cast<std::string&>(*it), value);
-			if (status == DTranx::Storage::Status::OK) {
+			if (status == DTranx::Service::GStatus::OK) {
 			} else {
 				DestroyClientTranx(clientTranx);
-				std::cout << "reading " << (*it) << " failure" << std::endl;
+				cout << "reading " << (*it) << " failure" << endl;
 				return kErrorNoData;
 			}
 		}
@@ -137,18 +137,17 @@ public:
 		DTranx::Client::ClientTranx * clientTranx = CreateClientTranx();
 		for (auto it = keys.begin(); it != keys.end(); ++it) {
 			std::string value;
-			DTranx::Storage::Status status = clientTranx->Read(
+			DTranx::Service::GStatus status = clientTranx->Read(
 					const_cast<std::string&>(*it), value, true);
-			if (status == DTranx::Storage::Status::OK) {
+			if (status == DTranx::Service::GStatus::OK) {
 			} else if (status
-					== DTranx::Storage::Status::SNAPSHOT_NOT_CREATED) {
+					== DTranx::Service::GStatus::SNAPSHOT_NOT_CREATED) {
 				DestroyClientTranx(clientTranx);
-				std::cout << "reading " << (*it) << " failure, no snapshot"
-						<< std::endl;
+				cout << "reading " << (*it) << " failure, no snapshot" << endl;
 				return kErrorNoData;
 			} else {
 				DestroyClientTranx(clientTranx);
-				std::cout << "reading " << (*it) << " failure" << std::endl;
+				cout << "reading " << (*it) << " failure" << endl;
 				return kErrorNoData;
 			}
 		}
@@ -161,7 +160,7 @@ public:
 		}
 	}
 
-	int Write(std::vector<KVPair> writes) {
+	int Update(std::vector<KVPair> writes) {
 		DTranx::Client::ClientTranx * clientTranx = CreateClientTranx();
 		for (auto it = writes.begin(); it != writes.end(); ++it) {
 			clientTranx->Write(it->first, it->second);
@@ -177,13 +176,13 @@ public:
 		}
 	}
 
-	int Update(std::vector<std::string> reads, std::vector<KVPair> writes) {
+	int ReadWrite(std::vector<std::string> reads, std::vector<KVPair> writes) {
 		DTranx::Client::ClientTranx * clientTranx = CreateClientTranx();
 		for (auto it = reads.begin(); it != reads.end(); ++it) {
 			std::string value;
-			DTranx::Storage::Status status = clientTranx->Read(
+			DTranx::Service::GStatus status = clientTranx->Read(
 					const_cast<std::string&>(*it), value);
-			if (status == DTranx::Storage::Status::OK) {
+			if (status == DTranx::Service::GStatus::OK) {
 			} else {
 				DestroyClientTranx(clientTranx);
 				return kErrorNoData;

@@ -15,7 +15,7 @@
 
 namespace ycsbc {
 
-class DB: public DB_BASE {
+class TableDB: public DB_BASE {
  public:
   ///
   /// Initializes any state for accessing this DB.
@@ -82,7 +82,7 @@ class DB: public DB_BASE {
   ///
   virtual int Delete(const std::string &table, const std::string &key) = 0;
   
-  virtual ~DB() { }
+  virtual ~TableDB() { }
 };
 
 } // ycsbc

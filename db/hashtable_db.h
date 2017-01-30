@@ -9,7 +9,7 @@
 #ifndef YCSB_C_HASHTABLE_DB_H_
 #define YCSB_C_HASHTABLE_DB_H_
 
-#include "core/db.h"
+#include "db/table_db.h"
 
 #include <string>
 #include <vector>
@@ -17,7 +17,7 @@
 
 namespace ycsbc {
 
-class HashtableDB : public DB {
+class HashtableDB : public TableDB {
  public:
   typedef vmp::StringHashtable<const char *> FieldHashtable;
   typedef vmp::StringHashtable<FieldHashtable *> KeyHashtable;

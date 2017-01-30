@@ -6,10 +6,10 @@
 //  Copyright (c) 2014 Jinglei Ren <jinglei@ren.systems>.
 //
 
-#include "db/hashtable_db.h"
-
 #include <string>
 #include <vector>
+
+#include "db/hashtable_db.h"
 #include "lib/string_hashtable.h"
 
 using std::string;
@@ -22,7 +22,7 @@ int HashtableDB::Read(const string &table, const string &key,
     const vector<string> *fields, vector<KVPair> &result) {
   string key_index(table + key);
   FieldHashtable *field_table = key_table_->Get(key_index.c_str());
-  if (!field_table) return DB::kErrorNoData;
+  if (!field_table) return DB_BASE::kErrorNoData;
 
   result.clear();
   if (!fields) {
@@ -37,7 +37,7 @@ int HashtableDB::Read(const string &table, const string &key,
       result.push_back(std::make_pair(field, value));
     }
   }
-  return DB::kOK;
+  return DB_BASE::kOK;
 }
 
 int HashtableDB::Scan(const string &table, const string &key, int len,
@@ -67,7 +67,7 @@ int HashtableDB::Scan(const string &table, const string &key, int len,
 
     result.push_back(field_values);
   }
-  return DB::kOK;
+  return DB_BASE::kOK;
 }
 
 int HashtableDB::Update(const string &table, const string &key,
@@ -92,7 +92,7 @@ int HashtableDB::Update(const string &table, const string &key,
       }
     }
   }
-  return DB::kOK;
+  return DB_BASE::kOK;
 }
 
 int HashtableDB::Insert(const string &table, const string &key,
@@ -109,21 +109,21 @@ int HashtableDB::Insert(const string &table, const string &key,
     bool ok = field_table->Insert(field_pair.first.c_str(), value);
     if (!ok) {
       DeleteString(value);
-      return DB::kErrorConflict;
+      return DB_BASE::kErrorConflict;
     }
   }
-  return DB::kOK;
+  return DB_BASE::kOK;
 }
 
 int HashtableDB::Delete(const string &table, const string &key) {
   string key_index(table + key);
   FieldHashtable *field_table = key_table_->Remove(key_index.c_str());
   if (!field_table) {
-    return DB::kErrorNoData;
+    return DB_BASE::kErrorNoData;
   } else {
     DeleteFieldHashtable(field_table);
   }
-  return DB::kOK;
+  return DB_BASE::kOK;
 }
 
 } // ycsbc

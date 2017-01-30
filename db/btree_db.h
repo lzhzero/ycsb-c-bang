@@ -1,12 +1,15 @@
 /*
  * Author: Ning Gao(nigo9731@colorado.edu)
+ *
+ * BTreeDB instance is not shared among threads but BTree Clients are shared
  */
 
 #ifndef YCSB_C_BTREE_DB_H_
 #define YCSB_C_BTREE_DB_H_
 
-#include "core/kvdb.h"
+#include "db/kvdb.h"
 #include "BTree/Core/BTreeTemplate.h"
+#include "commons.h"
 
 namespace ycsbc {
 
@@ -18,6 +21,9 @@ typedef Core::BTreeTemplate<uint64_t> BTreeInt;
 class BtreeDB: public KVDB {
 public:
 	BtreeDB() {
+		/*
+		 * btreedb is created for each thread to avoid metadata reading/writing
+		 */
 		btreeInt = NULL;
 		shareDB = false;
 	}
@@ -31,41 +37,39 @@ public:
 	}
 
 	~BtreeDB() {
-		DestroyDB();
+		if (btreeInt) {
+			delete btreeInt;
+		}
 	}
 
 	KVDB* Clone() {
 		BtreeDB* instance = new BtreeDB(*this);
-		instance->CreateDB();
+		std::cout << "Cloning BTree called" << std::endl;
+		/*
+		 * dtranxHelper will be reclaimed by BTree class
+		 */
+		Util::DtranxHelper *dtranxHelper = new Util::DtranxHelper(DTRANX_SERVER_PORT,
+				instance->ips_, instance->selfAddress_, LOCAL_USABLE_PORT_START);
+		for (size_t i = 0; i < instance->clients_.size(); ++i) {
+			dtranxHelper->InitClients(instance->ips_[i], instance->clients_[i]);
+		}
+		instance->btreeInt = new BTreeInt(dtranxHelper);
 		return instance;
 	}
 
-	//Not using unordered_map for clients because incompatibility between g++4.6 and g++4.9
-	void Init(std::vector<std::string> ips, std::string selfAddress) {
+	/*
+	 * Not using unordered_map for clients because incompatibility between g++4.6 and g++4.9
+	 * now it's already been upgraded to g++4.9
+	 */
+	void Init(std::vector<std::string> ips, std::string selfAddress,
+			int localStartPort) {
 		selfAddress_ = selfAddress;
 		ips_ = ips;
 		std::shared_ptr<zmq::context_t> context = std::make_shared<
-				zmq::context_t>(100);
-		int startPort = 30030;
+				zmq::context_t>(1);
 		for (auto it = ips.begin(); it != ips.end(); ++it) {
-			clients_.push_back(new DTranx::Client::Client(*it, 30000, context));
-			assert(clients_.back()->Bind(selfAddress, startPort++));
-		}
-	}
-	void CreateDB() {
-		//TODO: reclaim dtranxHelper
-		std::cout << "CreateDB called" << std::endl;
-		Util::DtranxHelper *dtranxHelper = new Util::DtranxHelper(30000, ips_,
-				selfAddress_, 30080);
-		for (size_t i = 0; i < clients_.size(); ++i) {
-			dtranxHelper->InitClients(ips_[i], clients_[i]);
-		}
-		btreeInt = new BTreeInt(dtranxHelper);
-	}
-
-	void DestroyDB() {
-		if (btreeInt) {
-			delete btreeInt;
+			clients_.push_back(new DTranx::Client::Client(*it, DTRANX_SERVER_PORT, context));
+			assert(clients_.back()->Bind(selfAddress, localStartPort++));
 		}
 	}
 
@@ -95,11 +99,11 @@ public:
 		return kOK;
 	}
 
-	int Write(std::vector<KVPair> writes) {
+	int Update(std::vector<KVPair> writes) {
 		return kOK;
 	}
 
-	int Update(std::vector<std::string> reads, std::vector<KVPair> writes) {
+	int ReadWrite(std::vector<std::string> reads, std::vector<KVPair> writes) {
 		return kOK;
 	}
 

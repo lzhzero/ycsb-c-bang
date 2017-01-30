@@ -19,6 +19,7 @@
 #include "core/core_workload.h"
 #include "db/db_factory.h"
 #include "DTranx/Util/Log.h"
+#include "db/commons.h"
 
 using namespace std;
 //aggregate throughput during the previous 20 seconds
@@ -31,11 +32,11 @@ string ParseCommandLine(int argc, const char *argv[], utils::Properties &props);
 struct DBData {
 	bool isKV;
 	std::vector<std::string> ips;
-	ycsbc::DB *db;
+	ycsbc::TableDB *tabledb;
 	ycsbc::KVDB *kvdb;
 	std::string dbName;
 	DBData() :
-			isKV(false), ips(), db(NULL), kvdb(NULL) {
+			isKV(false), ips(), tabledb(NULL), kvdb(NULL) {
 	}
 };
 
@@ -54,15 +55,11 @@ bool is_loading, std::atomic<int> *sum) {
 	if (dbData->isKV) {
 		assert(dbData->kvdb != NULL);
 	} else {
-		assert(dbData->db != NULL);
-		dbData->db->Init();
+		assert(dbData->tabledb != NULL);
 	}
-	/*
-	 * btreedb is created for each thread to avoid metadata reading/writing
-	 */
-	if (dbData->isKV && !dbData->kvdb->isDBShared()) {
-		ycsbc::KVDB *kvdb = dbData->kvdb->Clone();
-		ycsbc::Client client(dbData->db, kvdb, *wl);
+	if (dbData->isKV) {
+		ycsbc::KVDB *kvdb = dbData->kvdb->GetDBInstance();
+		ycsbc::Client client(dbData->tabledb, kvdb, *wl);
 		for (int i = 0; i < num_ops; ++i) {
 			if (is_loading) {
 				if (client.DoInsert()) {
@@ -74,21 +71,8 @@ bool is_loading, std::atomic<int> *sum) {
 				}
 			}
 		}
-		delete kvdb;
+		dbData->kvdb->DestroyDBInstance(kvdb);
 		return;
-	}
-
-	ycsbc::Client client(dbData->db, dbData->kvdb, *wl);
-	for (int i = 0; i < num_ops; ++i) {
-		if (is_loading) {
-			if (client.DoInsert()) {
-				sum->operator ++();
-			}
-		} else {
-			if (client.DoTransaction()) {
-				sum->operator ++();
-			}
-		}
 	}
 	//kvdb->Close();
 	//delete kvdb;
@@ -96,8 +80,9 @@ bool is_loading, std::atomic<int> *sum) {
 
 int main(const int argc, const char *argv[]) {
 
-	 DTranx::Util::Log::setLogPolicy( { { "Client", "PROFILE" }, { "Server", "PROFILE" }, { "Tranx",
-	 "PROFILE" }, { "Storage", "PROFILE" }, { "RPC", "PROFILE" }, {"Util", "PROFILE"}, { "Log", "PROFILE" } });
+	DTranx::Util::Log::setLogPolicy( { { "Client", "PROFILE" }, { "Server",
+			"PROFILE" }, { "Tranx", "PROFILE" }, { "Storage", "PROFILE" }, {
+			"RPC", "PROFILE" }, { "Util", "PROFILE" }, { "Log", "PROFILE" } });
 
 	utils::Properties props;
 	string file_name = ParseCommandLine(argc, argv, props);
@@ -128,10 +113,15 @@ int main(const int argc, const char *argv[]) {
 	if (dbData.isKV) {
 		dbData.kvdb = dynamic_cast<ycsbc::KVDB*>(ycsbc::DBFactory::CreateDB(
 				props["dbname"]));
-		dbData.kvdb->Init(dbData.ips, props["selfAddress"]);
+		/*
+		 * port usage is somewhat static and no need to add configuration file
+		 * for ycsb program
+		 */
+		dbData.kvdb->Init(dbData.ips, props["selfAddress"], LOCAL_USABLE_PORT_START);
 	} else {
-		dbData.db = dynamic_cast<ycsbc::DB*>(ycsbc::DBFactory::CreateDB(
-				props["dbname"]));
+		dbData.tabledb =
+				dynamic_cast<ycsbc::TableDB*>(ycsbc::DBFactory::CreateDB(
+						props["dbname"]));
 	}
 	ycsbc::CoreWorkload wl;
 	wl.Init(props);
@@ -159,7 +149,6 @@ int main(const int argc, const char *argv[]) {
 	 */
 	vector<std::thread> threads;
 	int total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
-	//int sums[num_threads];
 	std::atomic<int> sums[num_threads];
 	for (int i = 0; i < num_threads; ++i) {
 		sums[i].store(0);
@@ -222,6 +211,7 @@ int main(const int argc, const char *argv[]) {
 						false, &sums[i]));
 	}
 	sum = 0;
+	int prev = 0;
 	std::chrono::system_clock::time_point start =
 			std::chrono::system_clock::now();
 	std::chrono::system_clock::time_point end;
@@ -232,7 +222,9 @@ int main(const int argc, const char *argv[]) {
 		}
 		time_t t = time(0);   // get time now
 		struct tm * now = localtime(&t);
-		cout << now->tm_sec << ": " << sum << endl;
+		cout << now->tm_sec << ": " << sum << "---diff: " << (sum - prev)
+				<< endl;
+		prev = sum;
 		sleep(1);
 		end = std::chrono::system_clock::now();
 		if (std::chrono::duration_cast<std::chrono::seconds>(end - start).count()

@@ -1,5 +1,7 @@
 /*
  * Author: Ning Gao(nigo9731@colorado.edu)
+ *
+ * DB_BASE is the parent all database classes. It's further divided into KVDB and TableDB
  */
 
 #ifndef DTRANX_DB_BASE_H_
@@ -14,11 +16,6 @@ public:
 	static const int kOK = 0;
 	static const int kErrorNoData = 1;
 	static const int kErrorConflict = 2;
-	///
-	/// Clears any state for accessing this DB.
-	///
-	virtual void Close() {
-	}
 	virtual ~DB_BASE(){
 	}
 };

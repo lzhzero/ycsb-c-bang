@@ -14,7 +14,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
-#include "db.h"
+#include "db/table_db.h"
 #include "properties.h"
 #include "generator.h"
 #include "discrete_generator.h"
@@ -163,14 +163,14 @@ class CoreWorkload {
   ///
   virtual void Init(const utils::Properties &p);
   
-  virtual void BuildValues(std::vector<ycsbc::DB::KVPair> &values);
-  virtual void BuildUpdate(std::vector<ycsbc::DB::KVPair> &update);
+  virtual void BuildValues(std::vector<ycsbc::DB_BASE::KVPair> &values);
+  virtual void BuildUpdate(std::vector<ycsbc::DB_BASE::KVPair> &update);
   
   virtual std::string NextTable() { return table_name_; }
   virtual std::string NextSequenceKey(); /// Used for loading data
   virtual std::string NextTransactionKey(); /// Used for transactions
   virtual std::vector<std::string> NextTransactionKeys();
-  virtual std::vector<ycsbc::DB::KVPair> NextTransactionKVs();
+  virtual std::vector<ycsbc::DB_BASE::KVPair> NextTransactionKVs();
   virtual Operation NextOperation() { return op_chooser_.Next(); }
   virtual std::string NextFieldName();
   virtual size_t NextScanLength() { return scan_len_chooser_->Next(); }
@@ -261,7 +261,8 @@ inline std::string CoreWorkload::NextFieldName() {
 }
 
 inline std::vector<std::string> CoreWorkload::NextTransactionKeys() {
-	std::unique_lock<std::mutex> lockGuard(mutex);
+	//TODO: configurable for thread safety protection
+	//std::unique_lock<std::mutex> lockGuard(mutex);
 	std::vector<std::string> keys;
 	size_t num = keynum_chooser_->Next();
 	for(size_t i=1; i<=num; ++i){
@@ -269,12 +270,12 @@ inline std::vector<std::string> CoreWorkload::NextTransactionKeys() {
 	}
 	return keys;
 }
-inline std::vector<ycsbc::DB::KVPair> CoreWorkload::NextTransactionKVs(){
-	std::unique_lock<std::mutex> lockGuard(mutex);
-	std::vector<ycsbc::DB::KVPair> result;
+inline std::vector<ycsbc::DB_BASE::KVPair> CoreWorkload::NextTransactionKVs(){
+	//std::unique_lock<std::mutex> lockGuard(mutex);
+	std::vector<ycsbc::DB_BASE::KVPair> result;
 	size_t num = keynum_chooser_->Next();
 	for(size_t i=1; i<=num; ++i){
-		result.push_back(ycsbc::DB::KVPair(NextTransactionKey(),std::string(field_len_generator_->Next(), utils::RandomPrintChar())));
+		result.push_back(ycsbc::DB_BASE::KVPair(NextTransactionKey(),std::string(field_len_generator_->Next(), utils::RandomPrintChar())));
 	}
 	return result;
 }

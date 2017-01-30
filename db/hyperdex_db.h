@@ -6,10 +6,10 @@
 #define DTRANX_HYPERDEX_DB_H_
 
 #include <hyperdex/client.h>
+#include "commons.h"
 namespace ycsbc {
 
 static std::string SPACE = "ning";
-static int PORT = 7777;
 
 class HyperdexDB: public KVDB {
 public:
@@ -27,10 +27,11 @@ public:
 		return new HyperdexDB(*this);
 	}
 
-	void Init(std::vector<std::string> ips, std::string selfAddress = "") {
+	void Init(std::vector<std::string> ips, std::string selfAddress,
+			int localStartPort) {
 		ips_ = ips;
 		assert(ips_.size() > 0);
-		client_ = hyperdex_client_create(ips[0].c_str(), PORT);
+		client_ = hyperdex_client_create(ips[0].c_str(), HYPERDEX_SERVER_PORT);
 	}
 
 	void Close() {
@@ -82,7 +83,7 @@ public:
 		return kOK;
 	}
 
-	int Write(std::vector<KVPair> writes) {
+	int Update(std::vector<KVPair> writes) {
 		std::unique_lock<std::mutex> lockGuard(mutex);
 		enum hyperdex_client_returncode tranx_status;
 		enum hyperdex_client_returncode loop_status;
@@ -108,7 +109,7 @@ public:
 		}
 	}
 
-	int Update(std::vector<std::string> reads, std::vector<KVPair> writes) {
+	int ReadWrite(std::vector<std::string> reads, std::vector<KVPair> writes) {
 		std::unique_lock<std::mutex> lockGuard(mutex);
 		enum hyperdex_client_returncode tranx_status;
 		enum hyperdex_client_returncode loop_status;

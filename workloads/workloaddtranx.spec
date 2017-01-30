@@ -9,6 +9,7 @@
 # keymaxvalue: means the max key that exist in the database
 # snapshot means whether to run snapshot transactions or normal ones
 #
+# update is blind write, while readmodifywrite request a read then update it.
 #
 
 recordcount=0

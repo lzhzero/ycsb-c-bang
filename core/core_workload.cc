@@ -209,17 +209,17 @@ ycsbc::Generator<uint64_t> *CoreWorkload::GetFieldLenGenerator(
   }
 }
 
-void CoreWorkload::BuildValues(std::vector<ycsbc::DB::KVPair> &values) {
+void CoreWorkload::BuildValues(std::vector<ycsbc::DB_BASE::KVPair> &values) {
   for (int i = 0; i < field_count_; ++i) {
-    ycsbc::DB::KVPair pair;
+    ycsbc::DB_BASE::KVPair pair;
     pair.first.append("field").append(std::to_string(i));
     pair.second.append(field_len_generator_->Next(), utils::RandomPrintChar());
     values.push_back(pair);
   }
 }
 
-void CoreWorkload::BuildUpdate(std::vector<ycsbc::DB::KVPair> &update) {
-  ycsbc::DB::KVPair pair;
+void CoreWorkload::BuildUpdate(std::vector<ycsbc::DB_BASE::KVPair> &update) {
+  ycsbc::DB_BASE::KVPair pair;
   pair.first.append(NextFieldName());
   pair.second.append(field_len_generator_->Next(), utils::RandomPrintChar());
   update.push_back(pair);
