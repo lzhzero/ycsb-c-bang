@@ -39,7 +39,7 @@ public:
 		keyTypeString = other.keyTypeString;
 	}
 
-	KVDB* Clone() {
+	KVDB* Clone(int index) {
 		cout << "DTranxDB clone called" << endl;
 		return new DtranxDB(*this);
 	}
@@ -49,7 +49,7 @@ public:
 	 * now it's already been upgraded to g++4.9
 	 */
 	void Init(std::vector<std::string> servers, std::string selfAddress,
-			int localStartPort) {
+			int localStartPort, bool fristTime) {
 		std::shared_ptr<zmq::context_t> context = std::make_shared<
 				zmq::context_t>(1);
 		selfAddress_ = selfAddress;

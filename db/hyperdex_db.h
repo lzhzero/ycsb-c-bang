@@ -22,14 +22,16 @@ public:
 		std::cout << "HyperdexDB copy contructor is called" << std::endl;
 		ips_ = other.ips_;
 		client_ = other.client_;
+		shareDB = other.shareDB;
+		keyTypeString = other.keyTypeString;
 	}
 
-	KVDB* Clone() {
+	KVDB* Clone(int index) {
 		return new HyperdexDB(*this);
 	}
 
 	void Init(std::vector<std::string> ips, std::string selfAddress,
-			int localStartPort) {
+			int localStartPort, bool fristTime) {
 		ips_ = ips;
 		assert(ips_.size() > 0);
 		client_ = hyperdex_client_create(ips[0].c_str(), HYPERDEX_SERVER_PORT);

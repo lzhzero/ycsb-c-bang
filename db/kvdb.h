@@ -29,9 +29,10 @@ public:
 	 * 		assuming all remote server share the same configuration.
 	 * 	@localStartPort: start port number that ycsb can bind to, it
 	 * 		might use several ports
+	 * 	@firstTime means if the database is empty or not.
 	 */
 	virtual void Init(std::vector<std::string> ips, std::string selfAddress,
-			int localStartPort) = 0;
+			int localStartPort, bool fristTime = false) = 0;
 	virtual void Close() = 0;
 	/*
 	 * Reads a record from the database.
@@ -104,13 +105,13 @@ public:
 		return shareDB;
 	}
 
-	virtual KVDB *Clone() = 0;
+	virtual KVDB *Clone(int index) = 0;
 
-	virtual KVDB *GetDBInstance() {
+	virtual KVDB *GetDBInstance(int index) {
 		if (shareDB) {
 			return this;
 		} else {
-			return Clone();
+			return Clone(index);
 		}
 	}
 	virtual void DestroyDBInstance(KVDB* kvdb) {

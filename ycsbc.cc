@@ -45,7 +45,7 @@ struct DBData {
  * for DTranx(key value store), DB is independently instantiated among threads while DTranx Clients are shared.
  */
 void DelegateClient(DBData *dbData, utils::Properties *props, const int num_ops,
-bool is_loading, std::atomic<int> *sum, std::atomic<int> *sum_succ) {
+bool is_loading, std::atomic<int> *sum, std::atomic<int> *sum_succ, int index) {
 	/*
 	 * when testing hyperdexDB, create a kvdb instance for each thread
 	 * because each thread needs one socket connection to reach the max throughput
@@ -61,7 +61,7 @@ bool is_loading, std::atomic<int> *sum, std::atomic<int> *sum_succ) {
 		assert(dbData->tabledb != NULL);
 	}
 	if (dbData->isKV) {
-		ycsbc::KVDB *kvdb = dbData->kvdb->GetDBInstance();
+		ycsbc::KVDB *kvdb = dbData->kvdb->GetDBInstance(index);
 		ycsbc::Client client(dbData->tabledb, kvdb, wl);
 		for (int i = 0; i < num_ops; ++i) {
 			if (is_loading) {
@@ -122,7 +122,7 @@ int main(const int argc, const char *argv[]) {
 		 * for ycsb program
 		 */
 		dbData.kvdb->Init(dbData.ips, props["selfAddress"],
-				LOCAL_USABLE_PORT_START);
+				LOCAL_USABLE_PORT_START, std::stoi(props["firsttime"]) != 0);
 	} else {
 		dbData.tabledb =
 				dynamic_cast<ycsbc::TableDB*>(ycsbc::DBFactory::CreateDB(
@@ -168,7 +168,7 @@ int main(const int argc, const char *argv[]) {
 			threads.push_back(
 					std::thread(DelegateClient, &dbData, &props,
 							total_ops / num_threads,
-							true, &sums[i], &sums_succ[i]));
+							true, &sums[i], &sums_succ[i], i));
 		}
 		sum = 0;
 		std::chrono::system_clock::time_point start =
@@ -220,7 +220,7 @@ int main(const int argc, const char *argv[]) {
 		threads.push_back(
 				std::thread(DelegateClient, &dbData, &props,
 						total_ops / num_threads,
-						false, &sums[i], &sums_succ[i]));
+						false, &sums[i], &sums_succ[i], i));
 	}
 	sum = 0;
 	int prev = 0;
@@ -254,12 +254,18 @@ int main(const int argc, const char *argv[]) {
 	for (int i = 0; i < num_threads; ++i) {
 		sum += sums[i].load();
 	}
+
+	int sum_succ = 0;
+	for (int i = 0; i < num_threads; ++i) {
+		sum_succ += sums_succ[i].load();
+	}
+
 	double duration = timer.End();
 	cerr << "# Transaction throughput (KTPS)" << endl;
 	cerr << props["dbname"] << '\t' << file_name << '\t' << num_threads << '\t';
 	cerr << sum / duration / 1000 << endl;
-	cerr << "total_ops: " << total_ops << ", success: " << sum
-			<< ", percentage: " << 1.0 * sum / total_ops << endl;
+	cerr << "total_ops: " << total_ops << ", success: " << sum_succ
+			<< ", percentage: " << 1.0 * sum_succ / total_ops << endl;
 	if (dbData.isKV) {
 		dbData.kvdb->Close();
 	}
@@ -310,6 +316,14 @@ string ParseCommandLine(int argc, const char *argv[],
 			}
 			props.SetProperty("clusterfilename", argv[argindex]);
 			argindex++;
+		} else if (strcmp(argv[argindex], "-i") == 0) {
+			argindex++;
+			if (argindex >= argc) {
+				UsageMessage(argv[0]);
+				exit(0);
+			}
+			props.SetProperty("firsttime", argv[argindex]);
+			argindex++;
 		} else if (strcmp(argv[argindex], "-P") == 0) {
 			argindex++;
 			if (argindex >= argc) {
@@ -349,6 +363,9 @@ void UsageMessage(const char *command) {
 	cout << "  -threads n: execute using n threads (default: 1)" << endl;
 	cout << "  -db dbname: specify the name of the DB to use (default: basic)"
 			<< endl;
+	cout << "  -i firsttime: specify if this is the first time to run against the database, for btree usage"
+				<< "0 means no, anything else is yes"
+				<< endl;
 	cout
 			<< "  -P propertyfile: load properties from the given file. Multiple files can"
 			<< endl;

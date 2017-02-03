@@ -35,6 +35,8 @@ public:
 		selfAddress_ = other.selfAddress_;
 		clients_ = other.clients_;
 		btreeInt = other.btreeInt;
+		keyTypeString = other.keyTypeString;
+		shareDB = other.shareDB;
 	}
 
 	~BtreeDB() {
@@ -43,7 +45,7 @@ public:
 		}
 	}
 
-	KVDB* Clone() {
+	KVDB* Clone(int index) {
 		BtreeDB* instance = new BtreeDB(*this);
 		std::cout << "Cloning BTree called" << std::endl;
 		/*
@@ -55,7 +57,8 @@ public:
 		for (size_t i = 0; i < instance->clients_.size(); ++i) {
 			dtranxHelper->InitClients(instance->ips_[i], instance->clients_[i]);
 		}
-		instance->btreeInt = new BTreeInt(dtranxHelper);
+		instance->btreeInt = new BTreeInt(dtranxHelper, false,
+				"btree.debug" + std::to_string(index));
 		return instance;
 	}
 
@@ -64,7 +67,7 @@ public:
 	 * now it's already been upgraded to g++4.9
 	 */
 	void Init(std::vector<std::string> ips, std::string selfAddress,
-			int localStartPort) {
+			int localStartPort, bool fristTime) {
 		selfAddress_ = selfAddress;
 		ips_ = ips;
 		std::shared_ptr<zmq::context_t> context = std::make_shared<
@@ -74,6 +77,16 @@ public:
 					new DTranx::Client::Client(*it, DTRANX_SERVER_PORT,
 							context));
 			assert(clients_.back()->Bind(selfAddress, localStartPort++));
+		}
+		if (fristTime) {
+			Util::DtranxHelper *dtranxHelper = new Util::DtranxHelper(
+					DTRANX_SERVER_PORT, ips_, selfAddress_,
+					LOCAL_USABLE_PORT_START);
+			for (size_t i = 0; i < clients_.size(); ++i) {
+				dtranxHelper->InitClients(ips_[i], clients_[i]);
+			}
+			dtranxHelper->InitMeta();
+			delete dtranxHelper;
 		}
 	}
 
@@ -103,6 +116,7 @@ public:
 	}
 
 	int Insert(std::vector<KVPairInt> writes) {
+		//std::cout << "inserting " << writes[0].first << std::endl;
 		assert(!writes.empty());
 		btreeInt->insert_unique(writes[0].first);
 		return kOK;
