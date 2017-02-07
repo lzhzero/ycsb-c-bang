@@ -1,5 +1,7 @@
 /*
  * Author: Ning Gao(nigo9731@colorado.edu)
+ *
+ * Generate all keys for Hyperdex
  */
 
 #include <iostream>
@@ -24,9 +26,14 @@ inline uint64_t Hash(uint64_t val) {
 	return FNVHash64(val);
 }
 
-int main(void){
-	for(int i=0; i< 10000000; ++i){
-		std::cout<<"user"<<Hash(i)<<std::endl;
+int main(int argc, char *argv[]) {
+	if (argc != 2) {
+		std::cout << "arg1: number of keys to generate" << std::endl;
+		exit(0);
+	}
+	int numOfKeys = std::stoi(argv[1]);
+	for (int i = 0; i < numOfKeys; ++i) {
+		std::cout << "user" << Hash(i) << std::endl;
 	}
 	return 0;
 }
