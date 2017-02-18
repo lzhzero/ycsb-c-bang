@@ -1,10 +1,10 @@
-//
-//  ycsbc.cc
-//  YCSB-C
-//
-//  Created by Jinglei Ren on 12/19/14.
-//  Copyright (c) 2014 Jinglei Ren <jinglei@ren.systems>.
-//
+/*
+ * ycsbc.cc
+ * YCSB-C
+ *
+ * 	Created by Jinglei Ren on 12/19/14.
+ * 	Copyright (c) 2014 Jinglei Ren <jinglei@ren.systems>.
+ */
 
 #include <cstring>
 #include <string>
@@ -20,6 +20,7 @@
 #include "db/db_factory.h"
 #include "DTranx/Util/Log.h"
 #include "db/commons.h"
+#include <gperftools/profiler.h>
 
 using namespace std;
 //aggregate throughput during the previous 20 seconds
@@ -83,7 +84,7 @@ bool is_loading, std::atomic<int> *sum, std::atomic<int> *sum_succ, int index) {
 }
 
 int main(const int argc, const char *argv[]) {
-
+	//::ProfilerStart("ycsbc.prof");
 	DTranx::Util::Log::setLogPolicy( { { "Client", "PROFILE" }, { "Server",
 			"PROFILE" }, { "Tranx", "PROFILE" }, { "Storage", "PROFILE" }, {
 			"RPC", "PROFILE" }, { "Util", "PROFILE" }, { "Log", "PROFILE" } });
@@ -269,6 +270,7 @@ int main(const int argc, const char *argv[]) {
 	if (dbData.isKV) {
 		dbData.kvdb->Close();
 	}
+	//::ProfilerStop();
 }
 
 string ParseCommandLine(int argc, const char *argv[],

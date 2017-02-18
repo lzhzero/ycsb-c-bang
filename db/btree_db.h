@@ -48,17 +48,11 @@ public:
 	KVDB* Clone(int index) {
 		BtreeDB* instance = new BtreeDB(*this);
 		std::cout << "Cloning BTree called" << std::endl;
-		/*
-		 * dtranxHelper will be reclaimed by BTree class
-		 */
-		Util::DtranxHelper *dtranxHelper = new Util::DtranxHelper(
-				DTRANX_SERVER_PORT, instance->ips_, instance->selfAddress_,
-				LOCAL_USABLE_PORT_START);
-		for (size_t i = 0; i < instance->clients_.size(); ++i) {
-			dtranxHelper->InitClients(instance->ips_[i], instance->clients_[i]);
-		}
-		instance->btreeInt = new BTreeInt(dtranxHelper, false,
+		instance->btreeInt = new BTreeInt(false,
 				"btree.debug" + std::to_string(index));
+		instance->btreeInt->InitDTranxForBTree(DTRANX_SERVER_PORT,
+				instance->ips_, instance->selfAddress_, LOCAL_USABLE_PORT_START,
+				true, false, clients_);
 		return instance;
 	}
 
@@ -73,26 +67,20 @@ public:
 		std::shared_ptr<zmq::context_t> context = std::make_shared<
 				zmq::context_t>(1);
 		for (auto it = ips.begin(); it != ips.end(); ++it) {
-			clients_.push_back(
-					new DTranx::Client::Client(*it, DTRANX_SERVER_PORT,
-							context));
-			assert(clients_.back()->Bind(selfAddress, localStartPort++));
+			clients_[*it] = new DTranx::Client::Client(*it, DTRANX_SERVER_PORT,
+					context);
+			assert(clients_[*it]->Bind(selfAddress, localStartPort++));
 		}
 		if (fristTime) {
-			Util::DtranxHelper *dtranxHelper = new Util::DtranxHelper(
-					DTRANX_SERVER_PORT, ips_, selfAddress_,
-					LOCAL_USABLE_PORT_START);
-			for (size_t i = 0; i < clients_.size(); ++i) {
-				dtranxHelper->InitClients(ips_[i], clients_[i]);
-			}
-			dtranxHelper->InitMeta();
-			delete dtranxHelper;
+			btreeInt = new BTreeInt(false);
+			btreeInt->InitDTranxForBTree(DTRANX_SERVER_PORT, ips, selfAddress,
+					DTRANX_SERVER_PORT, true, true, clients_);
 		}
 	}
 
 	void Close() {
 		for (auto it = clients_.begin(); it != clients_.end(); ++it) {
-			delete *it;
+			delete it->second;
 		}
 	}
 
@@ -123,7 +111,7 @@ public:
 	}
 
 private:
-	std::vector<DTranx::Client::Client*> clients_;
+	std::unordered_map<std::string, DTranx::Client::Client*> clients_;
 	std::vector<std::string> ips_;
 	std::string selfAddress_;
 	BTreeInt *btreeInt;
