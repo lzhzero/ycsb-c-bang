@@ -4,4 +4,4 @@
 *.o
 *.d
 ycsbc
-scripts/HashGenerator
+Scripts/HashGenerator

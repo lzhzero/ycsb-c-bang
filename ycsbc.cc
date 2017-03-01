@@ -13,13 +13,13 @@
 #include <vector>
 #include <future>
 #include <chrono>
-#include "core/utils.h"
-#include "core/timer.h"
-#include "core/client.h"
-#include "core/core_workload.h"
-#include "db/db_factory.h"
+#include "Util/funcs.h"
+#include "Util/Timer.h"
+#include "client.h"
+#include "Core/core_workload.h"
+#include "DB/db_factory.h"
 #include "DTranx/Util/Log.h"
-#include "db/commons.h"
+#include "DB/commons.h"
 #include <gperftools/profiler.h>
 
 using namespace std;
@@ -28,13 +28,13 @@ int ONLINE_THROUGHPUT_TIME = 1000000;
 
 void UsageMessage(const char *command);
 bool StrStartWith(const char *str, const char *pre);
-string ParseCommandLine(int argc, const char *argv[], utils::Properties &props);
+string ParseCommandLine(int argc, const char *argv[], Ycsb::Core::Properties &props);
 
 struct DBData {
 	bool isKV;
 	std::vector<std::string> ips;
-	ycsbc::TableDB *tabledb;
-	ycsbc::KVDB *kvdb;
+	Ycsb::DB::TableDB *tabledb;
+	Ycsb::DB::KVDB *kvdb;
 	std::string dbName;
 	DBData() :
 			isKV(false), ips(), tabledb(NULL), kvdb(NULL) {
@@ -45,7 +45,7 @@ struct DBData {
  * Thread function
  * for DTranx(key value store), DB is independently instantiated among threads while DTranx Clients are shared.
  */
-void DelegateClient(DBData *dbData, utils::Properties *props, const int num_ops,
+void DelegateClient(DBData *dbData, Ycsb::Core::Properties *props, const int num_ops,
 bool is_loading, std::atomic<int> *sum, std::atomic<int> *sum_succ, int index) {
 	/*
 	 * when testing hyperdexDB, create a kvdb instance for each thread
@@ -53,7 +53,7 @@ bool is_loading, std::atomic<int> *sum, std::atomic<int> *sum_succ, int index) {
 	 */
 	//ycsbc::KVDB* kvdb = dynamic_cast<ycsbc::KVDB*>(ycsbc::DBFactory::CreateDB("hyperdex"));
 	//kvdb->Init(dbData->ips);
-	ycsbc::CoreWorkload wl;
+	Ycsb::Core::CoreWorkload wl;
 	wl.Init(*props);
 
 	if (dbData->isKV) {
@@ -62,8 +62,8 @@ bool is_loading, std::atomic<int> *sum, std::atomic<int> *sum_succ, int index) {
 		assert(dbData->tabledb != NULL);
 	}
 	if (dbData->isKV) {
-		ycsbc::KVDB *kvdb = dbData->kvdb->GetDBInstance(index);
-		ycsbc::Client client(dbData->tabledb, kvdb, wl);
+		Ycsb::DB::KVDB *kvdb = dbData->kvdb->GetDBInstance(index);
+		Ycsb::Client client(dbData->tabledb, kvdb, wl);
 		for (int i = 0; i < num_ops; ++i) {
 			if (is_loading) {
 				if (client.DoInsert()) {
@@ -89,7 +89,7 @@ int main(const int argc, const char *argv[]) {
 			"PROFILE" }, { "Tranx", "PROFILE" }, { "Storage", "PROFILE" }, {
 			"RPC", "PROFILE" }, { "Util", "PROFILE" }, { "Log", "PROFILE" } });
 
-	utils::Properties props;
+	Ycsb::Core::Properties props;
 	string file_name = ParseCommandLine(argc, argv, props);
 
 	/*
@@ -98,7 +98,7 @@ int main(const int argc, const char *argv[]) {
 	DBData dbData;
 	dbData.dbName = props["dbname"];
 	if (props["dbname"] == "dtranx" || props["dbname"] == "hyperdex"
-			|| props["dbname"] == "btree") {
+			|| props["dbname"] == "btree" || props["dbname"] == "rtree") {
 		dbData.isKV = true;
 		std::string clusterFileName = props.GetProperty("clusterfilename", "");
 		if (clusterFileName.empty()) {
@@ -116,7 +116,7 @@ int main(const int argc, const char *argv[]) {
 		}
 	}
 	if (dbData.isKV) {
-		dbData.kvdb = dynamic_cast<ycsbc::KVDB*>(ycsbc::DBFactory::CreateDB(
+		dbData.kvdb = dynamic_cast<Ycsb::DB::KVDB*>(Ycsb::DB::DBFactory::CreateDB(
 				props["dbname"]));
 		/*
 		 * port usage is somewhat static and no need to add configuration file
@@ -126,10 +126,10 @@ int main(const int argc, const char *argv[]) {
 				LOCAL_USABLE_PORT_START, std::stoi(props["firsttime"]) != 0);
 	} else {
 		dbData.tabledb =
-				dynamic_cast<ycsbc::TableDB*>(ycsbc::DBFactory::CreateDB(
+				dynamic_cast<Ycsb::DB::TableDB*>(Ycsb::DB::DBFactory::CreateDB(
 						props["dbname"]));
 	}
-	ycsbc::CoreWorkload wl;
+	Ycsb::Core::CoreWorkload wl;
 	wl.Init(props);
 
 	/*
@@ -141,7 +141,7 @@ int main(const int argc, const char *argv[]) {
 			cout << "cannot open " << "genwork" << endl;
 			exit(0);
 		}
-		int total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
+		int total_ops = stoi(props[Ycsb::Core::CoreWorkload::RECORD_COUNT_PROPERTY]);
 		for (int i = 0; i < total_ops; i++) {
 			std::string key = wl.NextTransactionKey();
 			workFile << key << endl;
@@ -154,7 +154,7 @@ int main(const int argc, const char *argv[]) {
 	 *  Loads data
 	 */
 	vector<std::thread> threads;
-	int total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
+	int total_ops = stoi(props[Ycsb::Core::CoreWorkload::RECORD_COUNT_PROPERTY]);
 	std::atomic<int> sums[num_threads];
 	std::atomic<int> sums_succ[num_threads];
 	for (int i = 0; i < num_threads; ++i) {
@@ -214,8 +214,8 @@ int main(const int argc, const char *argv[]) {
 	/*
 	 * Performs transactions
 	 */
-	total_ops = stoi(props[ycsbc::CoreWorkload::OPERATION_COUNT_PROPERTY]);
-	utils::Timer<double> timer;
+	total_ops = stoi(props[Ycsb::Core::CoreWorkload::OPERATION_COUNT_PROPERTY]);
+	Util::Timer<double> timer;
 	timer.Start();
 	for (int i = 0; i < num_threads; ++i) {
 		threads.push_back(
@@ -274,7 +274,7 @@ int main(const int argc, const char *argv[]) {
 }
 
 string ParseCommandLine(int argc, const char *argv[],
-		utils::Properties &props) {
+		Ycsb::Core::Properties &props) {
 	int argindex = 1;
 	string filename;
 	while (argindex < argc && StrStartWith(argv[argindex], "-")) {
@@ -365,7 +365,7 @@ void UsageMessage(const char *command) {
 	cout << "  -threads n: execute using n threads (default: 1)" << endl;
 	cout << "  -db dbname: specify the name of the DB to use (default: basic)"
 			<< endl;
-	cout << "  -i firsttime: specify if this is the first time to run against the database, for btree usage"
+	cout << "  -i firsttime: specify if this is the first time to run against the database, for btree/rtree usage"
 				<< "0 means no, anything else is yes"
 				<< endl;
 	cout
