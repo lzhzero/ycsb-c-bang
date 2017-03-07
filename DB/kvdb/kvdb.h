@@ -22,6 +22,9 @@ namespace DB {
 
 class KVDB: public DB_BASE {
 public:
+	enum KeyType {
+		STRING, INTEGER, CUSTOMIZE
+	};
 	/*
 	 * Init function initializes client connections
 	 * 	@ips: a list of remote server ips
@@ -47,6 +50,9 @@ public:
 	virtual int Read(std::vector<uint64_t> keys) {
 		return kOK;
 	}
+	virtual int Read() {
+		return kOK;
+	}
 
 	virtual int ReadSnapshot(std::vector<std::string> keys) {
 		return kOK;
@@ -68,13 +74,15 @@ public:
 			std::vector<KVPair> writes) {
 		return kOK;
 	}
-	;
 
 	virtual int ReadWrite(std::vector<uint64_t> reads,
 			std::vector<KVPairInt> writes) {
 		return kOK;
 	}
-	;
+
+	virtual int ReadWrite() {
+		return kOK;
+	}
 
 	/*
 	 *  Inserts a record into the database.
@@ -91,11 +99,19 @@ public:
 		return kOK;
 	}
 
+	virtual int Insert() {
+		return kOK;
+	}
+
 	virtual int Update(std::vector<KVPair> writes) {
 		return kOK;
 	}
 
 	virtual int Update(std::vector<KVPairInt> writes) {
+		return kOK;
+	}
+
+	virtual int Update() {
 		return kOK;
 	}
 
@@ -123,21 +139,21 @@ public:
 		}
 	}
 
-	bool isKeyTypeString() const {
-		return keyTypeString;
+	KeyType GetKeyType() const {
+		return keyType;
 	}
 
-	void setKeyTypeString(bool keyTypeString) {
-		this->keyTypeString = keyTypeString;
+	void SetKeyType(KeyType keyType) {
+		this->keyType = keyType;
 	}
 
 protected:
 	/*
 	 * shareDB means if we want to share DB instance among threads
-	 * isKeyTypeString means whether the key is string type or integer
+	 * isKeyTypeString means whether the key is string type or integer or customized like RTree
 	 */
 	bool shareDB;
-	bool keyTypeString;
+	KeyType keyType;
 };
 } // DB
 } // Ycsb

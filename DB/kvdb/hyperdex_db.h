@@ -25,14 +25,14 @@ public:
 	HyperdexDB() :
 			client_() {
 		shareDB = false;
-		keyTypeString = true;
+		keyType = KeyType::STRING;
 	}
 
 	HyperdexDB(const HyperdexDB& other) {
 		std::cout << "HyperdexDB copy contructor is called" << std::endl;
 		ips_ = other.ips_;
 		shareDB = other.shareDB;
-		keyTypeString = other.keyTypeString;
+		keyType = other.keyType;
 		client_ = NULL;
 	}
 

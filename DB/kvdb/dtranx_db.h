@@ -22,7 +22,7 @@ class DtranxDB: public KVDB {
 public:
 	DtranxDB() {
 		shareDB = false;
-		keyTypeString = true;
+		keyType = KeyType::STRING;
 		CurClientSetIndex = 0;
 		ClientSetNum = 10;
 	}
@@ -37,7 +37,7 @@ public:
 		clientCache = std::make_shared<DTranx::Client::ClientCache>();
 		clientCache->SetThreadSafety(true);
 		shareDB = other.shareDB;
-		keyTypeString = other.keyTypeString;
+		keyType = other.keyType;
 	}
 
 	KVDB* Clone(int index) {

@@ -26,7 +26,7 @@ public:
 		 */
 		btreeInt = NULL;
 		shareDB = false;
-		keyTypeString = false;
+		keyType = KeyType::INTEGER;
 	}
 
 	BtreeDB(const BtreeDB& other) {
@@ -35,7 +35,7 @@ public:
 		selfAddress_ = other.selfAddress_;
 		clients_ = other.clients_;
 		btreeInt = other.btreeInt;
-		keyTypeString = other.keyTypeString;
+		keyType = other.keyType;
 		shareDB = other.shareDB;
 	}
 

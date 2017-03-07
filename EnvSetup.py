@@ -47,6 +47,15 @@ def runBash(command):
 	out, err = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True).communicate()
 	return out
 
+def RunHyperdex(ip, RemoteUser):
+	print runSSHCommand(ip, RemoteUser, " wget -O - http://ubuntu.hyperdex.org/hyperdex.gpg.key | sudo apt-key add -; ")
+	print scp(True, "./hyperdex.list", RemoteUser, ip, "/users/nigo9731/Test/")
+	print runSSHCommand(ip, RemoteUser, " sudo mv /users/nigo9731/Test/hyperdex.list /etc/apt/sources.list.d/;")
+	print runSSHCommand(ip, RemoteUser, " sudo apt-get update; sudo apt-get -y install hyperdex-warp libhyperdex-client-dev-warp python-hyperdex-client-warp vim sysstat mutrace valgrind")
+	# the following are for running the hyperdex 
+	#print runSSHCommand(ip, RemoteUser, "mkdir ~/Test/hyperdex; hyperdex daemon -f --listen="+ip+" --listen-port=7778 --coordinator=128.104.222.31 --coordinator-port=7777 --data=/users/nigo9731/Test/hyperdex &> ~/Test/hyperdex.output &")
+	#print runSSHCommand(ip, RemoteUser, "rm -rf ~/Test/hyperdex*")
+
 def WaitForThreads(threads):
 	while True:
 		deleted_threads = []
@@ -71,7 +80,8 @@ runtime_parser.add_argument("-j","--job",dest="job",help=
 	"hyperdex(install hyperdex);\n"
 	"bench(copy benchmark related files);\n"
  	"helper(run a command in each node)", required = True)
-
+runtime_parser.add_argument("-o","--other",dest="other", help=
+	"for bench, specify the dtranx cluster size for generating ips file(default: every node in the cluster)")
 args = parser.parse_args()
 
 if args.subcommand == 'run':
@@ -105,13 +115,20 @@ if args.subcommand == 'run':
 		baseIP = "192.168.0."
 		index = 0
 		localipsFile = open('localips', 'w')
-		for ip in ips:
+		try:
+			clusterSize = int(args.other)
+		except:
+			print "input cluster size as the -o option to generate ips for benchmark tests"
+			exit()
+		for i in range(clusterSize):
 			index = index + 1
 			localipsFile.write(baseIP + str(index) + '\n')
 		localipsFile.close();
 		for ip in ips:
 			print ip
 			print scp(True, "/home/neal/Documents/dev/YCSB-C-DTranx/ycsbc", RemoteUser, ip, "/users/nigo9731/")
+			print scp(True, "/home/neal/Documents/dev/YCSB-C-DTranx/Scripts/HashGenerator", RemoteUser, ip, "/users/nigo9731/")
+			print scp(True, "/home/neal/Documents/dev/YCSB-C-DTranx/Scripts/InitializeHyperdex.py", RemoteUser, ip, "/users/nigo9731/")
 			print scp(True, "/home/neal/Documents/dev/YCSB-C-DTranx/workloads/workloaddtranx.spec", RemoteUser, ip, "/users/nigo9731/")
 			print scp(True, "/home/neal/Documents/dev/YCSB-C-DTranx/workloads/workloadbtree.spec", RemoteUser, ip, "/users/nigo9731/")
 			print scp(True, "/home/neal/Documents/dev/YCSB-C-DTranx/workloads/workloadrtree.spec", RemoteUser, ip, "/users/nigo9731/")

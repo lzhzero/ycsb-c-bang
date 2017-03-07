@@ -17,13 +17,14 @@ For hyperdex support, check out the website for installation http://hyperdex.org
 	2. start all daemons in all servers
 		hyperdex daemon -f --listen=192.168.0.1 --listen-port=7776 --coordinator=192.168.0.1 --coordinator-port=7777 --data=./hyperdex.db &> hyperdex.daemon &
 	3. initialize database
-		3.1 Add space "ning" using python
+		3.1 Add space "ning" using python in coordinator
 				import hyperdex.admin
-				a.add_space(’’’
+				a = hyperdex.admin.Admin('192.168.0.1', 7777)
+				a.add_space('''
   					space ning
   					key keystr
   					attributes value
-  					’’’)
+  					''')
 		3.2 create hashkey file by running HashGenerator.cc program
 				./a.out > hashkeys
 		3.3 Run InitializeHyperdex.py and feed it with hashkey file

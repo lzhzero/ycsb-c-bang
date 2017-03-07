@@ -36,8 +36,8 @@ struct DBData {
 	Ycsb::DB::TableDB *tabledb;
 	Ycsb::DB::KVDB *kvdb;
 	std::string dbName;
-	DBData() :
-			isKV(false), ips(), tabledb(NULL), kvdb(NULL) {
+	DBData()
+			: isKV(false), ips(), tabledb(NULL), kvdb(NULL) {
 	}
 };
 
@@ -46,7 +46,8 @@ struct DBData {
  * for DTranx(key value store), DB is independently instantiated among threads while DTranx Clients are shared.
  */
 void DelegateClient(DBData *dbData, Ycsb::Core::Properties *props, const int num_ops,
-bool is_loading, std::atomic<int> *sum, std::atomic<int> *sum_succ, int index) {
+		bool is_loading, std::atomic<int> *sum, std::atomic<int> *sum_succ, double* avgLatency,
+		int index) {
 	/*
 	 * when testing hyperdexDB, create a kvdb instance for each thread
 	 * because each thread needs one socket connection to reach the max throughput
@@ -64,6 +65,7 @@ bool is_loading, std::atomic<int> *sum, std::atomic<int> *sum_succ, int index) {
 	if (dbData->isKV) {
 		Ycsb::DB::KVDB *kvdb = dbData->kvdb->GetDBInstance(index);
 		Ycsb::Client client(dbData->tabledb, kvdb, wl);
+		boost::chrono::steady_clock::time_point start = boost::chrono::steady_clock::now();
 		for (int i = 0; i < num_ops; ++i) {
 			if (is_loading) {
 				if (client.DoInsert()) {
@@ -76,6 +78,10 @@ bool is_loading, std::atomic<int> *sum, std::atomic<int> *sum_succ, int index) {
 			}
 			sum->operator ++();
 		}
+		boost::chrono::steady_clock::time_point end = boost::chrono::steady_clock::now();
+		uint64_t timeElapsed = boost::chrono::duration_cast<boost::chrono::microseconds>(
+				end - start).count();
+		*avgLatency = timeElapsed * 1.0 / num_ops;
 		dbData->kvdb->DestroyDBInstance(kvdb);
 		return;
 	}
@@ -85,9 +91,9 @@ bool is_loading, std::atomic<int> *sum, std::atomic<int> *sum_succ, int index) {
 
 int main(const int argc, const char *argv[]) {
 	//::ProfilerStart("ycsbc.prof");
-	DTranx::Util::Log::setLogPolicy( { { "Client", "PROFILE" }, { "Server",
-			"PROFILE" }, { "Tranx", "PROFILE" }, { "Storage", "PROFILE" }, {
-			"RPC", "PROFILE" }, { "Util", "PROFILE" }, { "Log", "PROFILE" } });
+	DTranx::Util::Log::setLogPolicy( { { "Client", "PROFILE" }, { "Server", "PROFILE" }, { "Tranx",
+			"PROFILE" }, { "Storage", "PROFILE" }, { "RPC", "PROFILE" }, { "Util", "PROFILE" }, {
+			"Log", "PROFILE" } });
 
 	Ycsb::Core::Properties props;
 	string file_name = ParseCommandLine(argc, argv, props);
@@ -97,8 +103,8 @@ int main(const int argc, const char *argv[]) {
 	 */
 	DBData dbData;
 	dbData.dbName = props["dbname"];
-	if (props["dbname"] == "dtranx" || props["dbname"] == "hyperdex"
-			|| props["dbname"] == "btree" || props["dbname"] == "rtree") {
+	if (props["dbname"] == "dtranx" || props["dbname"] == "hyperdex" || props["dbname"] == "btree"
+			|| props["dbname"] == "rtree") {
 		dbData.isKV = true;
 		std::string clusterFileName = props.GetProperty("clusterfilename", "");
 		if (clusterFileName.empty()) {
@@ -116,18 +122,16 @@ int main(const int argc, const char *argv[]) {
 		}
 	}
 	if (dbData.isKV) {
-		dbData.kvdb = dynamic_cast<Ycsb::DB::KVDB*>(Ycsb::DB::DBFactory::CreateDB(
-				props["dbname"]));
+		dbData.kvdb = dynamic_cast<Ycsb::DB::KVDB*>(Ycsb::DB::DBFactory::CreateDB(props["dbname"]));
 		/*
 		 * port usage is somewhat static and no need to add configuration file
 		 * for ycsb program
 		 */
-		dbData.kvdb->Init(dbData.ips, props["selfAddress"],
-				LOCAL_USABLE_PORT_START, std::stoi(props["firsttime"]) != 0);
+		dbData.kvdb->Init(dbData.ips, props["selfAddress"], LOCAL_USABLE_PORT_START,
+				std::stoi(props["firsttime"]) != 0);
 	} else {
-		dbData.tabledb =
-				dynamic_cast<Ycsb::DB::TableDB*>(Ycsb::DB::DBFactory::CreateDB(
-						props["dbname"]));
+		dbData.tabledb = dynamic_cast<Ycsb::DB::TableDB*>(Ycsb::DB::DBFactory::CreateDB(
+				props["dbname"]));
 	}
 	Ycsb::Core::CoreWorkload wl;
 	wl.Init(props);
@@ -157,6 +161,7 @@ int main(const int argc, const char *argv[]) {
 	int total_ops = stoi(props[Ycsb::Core::CoreWorkload::RECORD_COUNT_PROPERTY]);
 	std::atomic<int> sums[num_threads];
 	std::atomic<int> sums_succ[num_threads];
+	double latencies[num_threads];
 	for (int i = 0; i < num_threads; ++i) {
 		sums[i].store(0);
 	}
@@ -167,13 +172,11 @@ int main(const int argc, const char *argv[]) {
 	if (total_ops >= num_threads) {
 		for (int i = 0; i < num_threads; ++i) {
 			threads.push_back(
-					std::thread(DelegateClient, &dbData, &props,
-							total_ops / num_threads,
-							true, &sums[i], &sums_succ[i], i));
+					std::thread(DelegateClient, &dbData, &props, total_ops / num_threads, true,
+							&sums[i], &sums_succ[i], &latencies[i], i));
 		}
 		sum = 0;
-		std::chrono::system_clock::time_point start =
-				std::chrono::system_clock::now();
+		std::chrono::system_clock::time_point start = std::chrono::system_clock::now();
 		std::chrono::system_clock::time_point end;
 		while (sum < total_ops * 0.8) {
 			sum = 0;
@@ -210,6 +213,9 @@ int main(const int argc, const char *argv[]) {
 	for (int i = 0; i < num_threads; ++i) {
 		sums_succ[i].store(0);
 	}
+	for (int i = 0; i < num_threads; ++i) {
+		latencies[i] = 0.0;
+	}
 
 	/*
 	 * Performs transactions
@@ -219,14 +225,12 @@ int main(const int argc, const char *argv[]) {
 	timer.Start();
 	for (int i = 0; i < num_threads; ++i) {
 		threads.push_back(
-				std::thread(DelegateClient, &dbData, &props,
-						total_ops / num_threads,
-						false, &sums[i], &sums_succ[i], i));
+				std::thread(DelegateClient, &dbData, &props, total_ops / num_threads, false,
+						&sums[i], &sums_succ[i], &latencies[i], i));
 	}
 	sum = 0;
 	int prev = 0;
-	std::chrono::system_clock::time_point start =
-			std::chrono::system_clock::now();
+	std::chrono::system_clock::time_point start = std::chrono::system_clock::now();
 	std::chrono::system_clock::time_point end;
 	while (sum < total_ops * 0.8) {
 		sum = 0;
@@ -235,8 +239,7 @@ int main(const int argc, const char *argv[]) {
 		}
 		time_t t = time(0);   // get time now
 		struct tm * now = localtime(&t);
-		cout << now->tm_sec << ": " << sum << "---diff: " << (sum - prev)
-				<< endl;
+		cout << now->tm_sec << ": " << sum << "---diff: " << (sum - prev) << endl;
 		prev = sum;
 		sleep(1);
 		end = std::chrono::system_clock::now();
@@ -261,20 +264,28 @@ int main(const int argc, const char *argv[]) {
 		sum_succ += sums_succ[i].load();
 	}
 
+	double avg_latency = 0.0;
+	uint64_t numOfLatencies = 0;
+	for (int i = 0; i < num_threads; ++i) {
+		avg_latency += latencies[i];
+		numOfLatencies++;
+	}
+	avg_latency = avg_latency / numOfLatencies;
+
 	double duration = timer.End();
 	cerr << "# Transaction throughput (KTPS)" << endl;
 	cerr << props["dbname"] << '\t' << file_name << '\t' << num_threads << '\t';
 	cerr << sum / duration / 1000 << endl;
-	cerr << "total_ops: " << total_ops << ", success: " << sum_succ
-			<< ", percentage: " << 1.0 * sum_succ / total_ops << endl;
+	cerr << "total_ops: " << total_ops << ", success: " << sum_succ << ", percentage: "
+			<< 1.0 * sum_succ / total_ops << endl;
+	cerr << "avg_latency: " << avg_latency << " microseconds" << endl;
 	if (dbData.isKV) {
 		dbData.kvdb->Close();
 	}
 	//::ProfilerStop();
 }
 
-string ParseCommandLine(int argc, const char *argv[],
-		Ycsb::Core::Properties &props) {
+string ParseCommandLine(int argc, const char *argv[], Ycsb::Core::Properties &props) {
 	int argindex = 1;
 	string filename;
 	while (argindex < argc && StrStartWith(argv[argindex], "-")) {
@@ -359,25 +370,18 @@ string ParseCommandLine(int argc, const char *argv[],
 void UsageMessage(const char *command) {
 	cout << "Usage: " << command << " [options]" << endl;
 	cout << "Options:" << endl;
-	cout
-			<< "  -genwork n: if n equals 1, generate keys to a file named genwork.data (default: 0)"
+	cout << "  -genwork n: if n equals 1, generate keys to a file named genwork.data (default: 0)"
 			<< endl;
 	cout << "  -threads n: execute using n threads (default: 1)" << endl;
-	cout << "  -db dbname: specify the name of the DB to use (default: basic)"
-			<< endl;
-	cout << "  -i firsttime: specify if this is the first time to run against the database, for btree/rtree usage"
-				<< "0 means no, anything else is yes"
-				<< endl;
+	cout << "  -db dbname: specify the name of the DB to use (default: basic)" << endl;
 	cout
-			<< "  -P propertyfile: load properties from the given file. Multiple files can"
-			<< endl;
-	cout
-			<< "  -C clusterfile: only used for dtranx db, load ip addresses from the given file."
+			<< "  -i firsttime: specify if this is the first time to run against the database, for btree/rtree usage"
+			<< "0 means no, anything else is yes" << endl;
+	cout << "  -P propertyfile: load properties from the given file. Multiple files can" << endl;
+	cout << "  -C clusterfile: only used for dtranx db, load ip addresses from the given file."
 			<< endl;
 	cout << "  -s selfAddress: self address that clients bind to." << endl;
-	cout
-			<< "                   be specified, and will be processed in the order specified"
-			<< endl;
+	cout << "                   be specified, and will be processed in the order specified" << endl;
 }
 
 inline bool StrStartWith(const char *str, const char *pre) {

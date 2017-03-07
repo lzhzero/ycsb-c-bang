@@ -16,14 +16,14 @@
 namespace Ycsb {
 using std::cout;
 using std::endl;
-typedef RTree::Core::RTree<RTree::Core::StringDataType, float, 3> RTreeString;
+typedef RTree::Core::RTree<RTree::Core::StringDataType, float, 3, float, 30, 5> RTreeString;
 
 /*
  * Generate workload based on MAX_WORLDSIZE and FRAC_WORLDSIZE
  * TODO: move the workload generation to core_workload class
  */
-const float MAX_WORLDSIZE = 10000.0f;
-const float FRAC_WORLDSIZE = 100.0f;
+const float MAX_WORLDSIZE = 100000000.0f;
+const float FRAC_WORLDSIZE = 10.0f;
 
 bool QueryResultCallback(RTree::Core::StringDataType a_data, void* a_context) {
 	return true;
@@ -50,8 +50,7 @@ private:
 		float v[3];
 	};
 	void GenerateObject(Vec3 *min, Vec3 *max) {
-		*min = Vec3(
-				Util::RandomFloat(-MAX_WORLDSIZE, MAX_WORLDSIZE),
+		*min = Vec3(Util::RandomFloat(-MAX_WORLDSIZE, MAX_WORLDSIZE),
 				Util::RandomFloat(-MAX_WORLDSIZE, MAX_WORLDSIZE),
 				Util::RandomFloat(-MAX_WORLDSIZE, MAX_WORLDSIZE));
 		Vec3 extent = Vec3(Util::RandomFloat(0.0, FRAC_WORLDSIZE),
@@ -66,7 +65,7 @@ public:
 		 */
 		rtreeString = NULL;
 		shareDB = false;
-		keyTypeString = false;
+		keyType = KeyType::CUSTOMIZE;
 	}
 
 	RtreeDB(const RtreeDB& other) {
@@ -75,7 +74,7 @@ public:
 		selfAddress_ = other.selfAddress_;
 		clients_ = other.clients_;
 		rtreeString = other.rtreeString;
-		keyTypeString = other.keyTypeString;
+		keyType = other.keyType;
 		shareDB = other.shareDB;
 	}
 
@@ -88,7 +87,7 @@ public:
 	KVDB* Clone(int index) {
 		RtreeDB* instance = new RtreeDB(*this);
 		std::cout << "Cloning RTree called" << std::endl;
-		instance->rtreeString = new RTreeString(true,
+		instance->rtreeString = new RTreeString(false,
 				"rtree.debug" + std::to_string(index));
 		instance->rtreeString->InitDTranxForRTree(DTRANX_SERVER_PORT,
 				instance->ips_, instance->selfAddress_, LOCAL_USABLE_PORT_START,
@@ -124,7 +123,7 @@ public:
 		}
 	}
 
-	int Read(std::vector<uint64_t> keys) {
+	int Read() {
 		Vec3 min, max;
 		GenerateObject(&min, &max);
 		rtreeString->Search(min.v, max.v, &QueryResultCallback, NULL);
@@ -135,15 +134,15 @@ public:
 		return kOK;
 	}
 
-	int Update(std::vector<KVPairInt> writes) {
+	int Update() {
 		return kOK;
 	}
 
-	int ReadWrite(std::vector<uint64_t> reads, std::vector<KVPairInt> writes) {
+	int ReadWrite() {
 		return kOK;
 	}
 
-	int Insert(std::vector<KVPairInt> writes) {
+	int Insert() {
 		RTree::Core::StringDataType newData;
 		Vec3 min, max;
 		GenerateObject(&min, &max);

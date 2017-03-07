@@ -54,13 +54,16 @@ protected:
 
 inline bool Client::DoInsert() {
 	if (isKV) {
-		if (kv_db_->isKeyTypeString()) {
-			std::vector<DB::DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
+		if (kv_db_->GetKeyType() == DB::KVDB::KeyType::STRING) {
+			std::vector<DB::DB_BASE::KVPair> kvs =
+					workload_.NextTransactionKVs();
 			return kv_db_->Insert(kvs) == DB::DB_BASE::kOK;
-		} else {
+		} else if (kv_db_->GetKeyType() == DB::KVDB::KeyType::INTEGER) {
 			std::vector<DB::DB_BASE::KVPairInt> kvs =
 					workload_.NextTransactionKVsInt();
 			return kv_db_->Insert(kvs) == DB::DB_BASE::kOK;
+		} else {
+			return kv_db_->Insert() == DB::DB_BASE::kOK;
 		}
 	}
 	assert(db_ != NULL);
@@ -105,12 +108,15 @@ inline bool Client::DoTransaction() {
 inline int Client::TransactionRead() {
 	if (isKV) {
 		assert(kv_db_ != NULL);
-		if (kv_db_->isKeyTypeString()) {
+		if (kv_db_->GetKeyType() == DB::KVDB::KeyType::STRING) {
 			std::vector<std::string> keys = workload_.NextTransactionKeys();
 			return kv_db_->Read(keys);
-		} else {
+		} else if (kv_db_->GetKeyType() == DB::KVDB::KeyType::INTEGER) {
 			std::vector<uint64_t> keys = workload_.NextTransactionKeysInt();
 			return kv_db_->Read(keys);
+		} else {
+			std::vector<uint64_t> keys;
+			return kv_db_->Read();
 		}
 	} else {
 		assert(db_ != NULL);
@@ -142,14 +148,15 @@ inline int Client::TransactionSnapshotRead() {
 inline int Client::TransactionReadModifyWrite() {
 	if (isKV) {
 		assert(kv_db_ != NULL);
-		if (kv_db_->isKeyTypeString()) {
+		if (kv_db_->GetKeyType() == DB::KVDB::KeyType::STRING) {
 			std::vector<std::string> keys = workload_.NextTransactionKeys();
 			keys.pop_back();
-			std::vector<DB::DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
+			std::vector<DB::DB_BASE::KVPair> kvs =
+					workload_.NextTransactionKVs();
 			std::vector<DB::DB_BASE::KVPair> kvs_filter;
 			kvs_filter.push_back(kvs[0]);
 			return kv_db_->ReadWrite(keys, kvs_filter);
-		} else {
+		} else if (kv_db_->GetKeyType() == DB::KVDB::KeyType::INTEGER) {
 			std::vector<uint64_t> keys = workload_.NextTransactionKeysInt();
 			keys.pop_back();
 			std::vector<DB::DB_BASE::KVPairInt> kvs =
@@ -157,6 +164,8 @@ inline int Client::TransactionReadModifyWrite() {
 			std::vector<DB::DB_BASE::KVPairInt> kvs_filter;
 			kvs_filter.push_back(kvs[0]);
 			return kv_db_->ReadWrite(keys, kvs_filter);
+		} else {
+			return kv_db_->ReadWrite();
 		}
 	} else {
 		assert(db_ != NULL);
@@ -206,13 +215,16 @@ inline int Client::TransactionScan() {
 inline int Client::TransactionUpdate() {
 	if (isKV) {
 		assert(kv_db_ != NULL);
-		if (kv_db_->isKeyTypeString()) {
-			std::vector<DB::DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
+		if (kv_db_->GetKeyType() == DB::KVDB::KeyType::STRING) {
+			std::vector<DB::DB_BASE::KVPair> kvs =
+					workload_.NextTransactionKVs();
 			return kv_db_->Update(kvs);
-		} else {
+		} else if (kv_db_->GetKeyType() == DB::KVDB::KeyType::INTEGER) {
 			std::vector<DB::DB_BASE::KVPairInt> kvs =
 					workload_.NextTransactionKVsInt();
 			return kv_db_->Update(kvs);
+		} else {
+			return kv_db_->Update();
 		}
 	} else {
 		assert(db_ != NULL);
@@ -234,13 +246,16 @@ inline int Client::TransactionUpdate() {
 inline int Client::TransactionInsert() {
 	if (isKV) {
 		assert(kv_db_ != NULL);
-		if (kv_db_->isKeyTypeString()) {
-			std::vector<DB::DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
+		if (kv_db_->GetKeyType() == DB::KVDB::KeyType::STRING) {
+			std::vector<DB::DB_BASE::KVPair> kvs =
+					workload_.NextTransactionKVs();
 			return kv_db_->Insert(kvs);
-		} else {
+		} else if (kv_db_->GetKeyType() == DB::KVDB::KeyType::INTEGER) {
 			std::vector<DB::DB_BASE::KVPairInt> kvs =
 					workload_.NextTransactionKVsInt();
 			return kv_db_->Insert(kvs);
+		} else {
+			return kv_db_->Insert();
 		}
 	} else {
 		assert(db_ != NULL);

@@ -6,7 +6,7 @@ c = hyperdex.client.Client('192.168.0.1',7777)
 SPACE = "ning"
 if len(sys.argv) != 2:
 	print "first argument should be filename"
-	exit
+	exit()
 f = open(sys.argv[1], 'r')
 index = 1
 for line in f:
