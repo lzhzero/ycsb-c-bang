@@ -14,7 +14,6 @@
 #include <algorithm>
 #include <unordered_map>
 #include "Exception.h"
-
 namespace Ycsb {
 namespace Util {
 
@@ -65,19 +64,6 @@ struct RandFloatSeed {
 		return uniform(generator);
 	}
 };
-
-extern std::unordered_map<std::pair<float, float>, RandFloatSeed*, PairHash<float, float>> randFloatSeeds;
-
-inline float RandomFloat(float min = 0.0, float max = 1.0) {
-	std::pair<float, float> range(min, max);
-	RandFloatSeed* floatSeed = NULL;
-	if (randFloatSeeds.find(range) == randFloatSeeds.end()) {
-		floatSeed = randFloatSeeds[range] = new RandFloatSeed(min, max);
-	} else {
-		floatSeed = randFloatSeeds[range];
-	}
-	return floatSeed->Next();
-}
 
 ///
 /// Returns an ASCII code that can be printed to desplay

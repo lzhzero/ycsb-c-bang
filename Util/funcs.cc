@@ -9,8 +9,5 @@
 namespace Ycsb {
 namespace Util {
 
-std::unordered_map<std::pair<float, float>, RandFloatSeed*,
-		PairHash<float, float>> randFloatSeeds;
-
 } // Util
 } // Ycsb

@@ -50,12 +50,12 @@ private:
 		float v[3];
 	};
 	void GenerateObject(Vec3 *min, Vec3 *max) {
-		*min = Vec3(Util::RandomFloat(-MAX_WORLDSIZE, MAX_WORLDSIZE),
-				Util::RandomFloat(-MAX_WORLDSIZE, MAX_WORLDSIZE),
-				Util::RandomFloat(-MAX_WORLDSIZE, MAX_WORLDSIZE));
-		Vec3 extent = Vec3(Util::RandomFloat(0.0, FRAC_WORLDSIZE),
-				Util::RandomFloat(0.0, FRAC_WORLDSIZE),
-				Util::RandomFloat(0.0, FRAC_WORLDSIZE));
+		*min = Vec3(RandomFloat(-MAX_WORLDSIZE, MAX_WORLDSIZE),
+				RandomFloat(-MAX_WORLDSIZE, MAX_WORLDSIZE),
+				RandomFloat(-MAX_WORLDSIZE, MAX_WORLDSIZE));
+		Vec3 extent = Vec3(RandomFloat(0.0, FRAC_WORLDSIZE),
+				RandomFloat(0.0, FRAC_WORLDSIZE),
+				RandomFloat(0.0, FRAC_WORLDSIZE));
 		*max = *min + extent;
 	}
 public:
@@ -151,10 +151,23 @@ public:
 	}
 
 private:
+
+	inline float RandomFloat(float min = 0.0, float max = 1.0) {
+		std::pair<float, float> range(min, max);
+		Util::RandFloatSeed* floatSeed = NULL;
+		if (randFloatSeeds.find(range) == randFloatSeeds.end()) {
+			floatSeed = randFloatSeeds[range] = new Util::RandFloatSeed(min, max);
+		} else {
+			floatSeed = randFloatSeeds[range];
+		}
+		return floatSeed->Next();
+	}
+
 	std::unordered_map<std::string, DTranx::Client::Client*> clients_;
 	std::vector<std::string> ips_;
 	std::string selfAddress_;
 	RTreeString *rtreeString;
+	std::unordered_map<std::pair<float, float>, Util::RandFloatSeed*, Util::PairHash<float, float>> randFloatSeeds;
 };
 } // DB
 } // Ycsb

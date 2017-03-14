@@ -275,7 +275,7 @@ int main(const int argc, const char *argv[]) {
 	double duration = timer.End();
 	cerr << "# Transaction throughput (KTPS)" << endl;
 	cerr << props["dbname"] << '\t' << file_name << '\t' << num_threads << '\t';
-	cerr << sum / duration / 1000 << endl;
+	cerr << sum_succ / duration / 1000 << endl;
 	cerr << "total_ops: " << total_ops << ", success: " << sum_succ << ", percentage: "
 			<< 1.0 * sum_succ / total_ops << endl;
 	cerr << "avg_latency: " << avg_latency << " microseconds" << endl;
