@@ -8,7 +8,7 @@
 #ifndef YCSB_C_RTREE_DB_H_
 #define YCSB_C_RTREE_DB_H_
 
-#include "kvdb.h"
+#include "ddsbrick.h"
 #include "RTree/Core/RTree.h"
 #include "DB/commons.h"
 #include "Util/funcs.h"
@@ -30,7 +30,7 @@ bool QueryResultCallback(RTree::Core::StringDataType a_data, void* a_context) {
 }
 
 namespace DB {
-class RtreeDB: public KVDB {
+class RtreeDB: public DDSBrick {
 private:
 	struct Vec3 {
 		Vec3() {
@@ -44,8 +44,7 @@ private:
 			return Vec3(v[0] + other.v[0], v[1] + other.v[1], v[2] + other.v[2]);
 		}
 		void Print() {
-			std::cout << "(" << v[0] << "," << v[1] << "," << v[2] << ")"
-					<< std::endl;
+			std::cout << "(" << v[0] << "," << v[1] << "," << v[2] << ")" << std::endl;
 		}
 		float v[3];
 	};
@@ -53,29 +52,26 @@ private:
 		*min = Vec3(RandomFloat(-MAX_WORLDSIZE, MAX_WORLDSIZE),
 				RandomFloat(-MAX_WORLDSIZE, MAX_WORLDSIZE),
 				RandomFloat(-MAX_WORLDSIZE, MAX_WORLDSIZE));
-		Vec3 extent = Vec3(RandomFloat(0.0, FRAC_WORLDSIZE),
-				RandomFloat(0.0, FRAC_WORLDSIZE),
+		Vec3 extent = Vec3(RandomFloat(0.0, FRAC_WORLDSIZE), RandomFloat(0.0, FRAC_WORLDSIZE),
 				RandomFloat(0.0, FRAC_WORLDSIZE));
 		*max = *min + extent;
 	}
 public:
-	RtreeDB() {
+	RtreeDB(Ycsb::Core::Properties &props) {
 		/*
 		 * rtreedb is created for each thread to avoid metadata reading/writing
 		 */
 		rtreeString = NULL;
-		shareDB = false;
 		keyType = KeyType::CUSTOMIZE;
+		if (props.GetProperty("mempool") == "0") {
+			DisablePoolCache();
+		}
 	}
 
-	RtreeDB(const RtreeDB& other) {
+	RtreeDB(const RtreeDB& other)
+			: DDSBrick(other) {
 		std::cout << "rtree copy constructor is called" << std::endl;
-		ips_ = other.ips_;
-		selfAddress_ = other.selfAddress_;
-		clients_ = other.clients_;
 		rtreeString = other.rtreeString;
-		keyType = other.keyType;
-		shareDB = other.shareDB;
 	}
 
 	~RtreeDB() {
@@ -87,11 +83,10 @@ public:
 	KVDB* Clone(int index) {
 		RtreeDB* instance = new RtreeDB(*this);
 		std::cout << "Cloning RTree called" << std::endl;
-		instance->rtreeString = new RTreeString(false,
-				"rtree.debug" + std::to_string(index));
-		instance->rtreeString->InitDTranxForRTree(DTRANX_SERVER_PORT,
-				instance->ips_, instance->selfAddress_, LOCAL_USABLE_PORT_START,
-				true, false, clients_);
+		instance->rtreeString = new RTreeString(false, "rtree.debug" + std::to_string(index),
+				poolCached);
+		instance->rtreeString->InitDTranxForRTree(DTRANX_SERVER_PORT, instance->ips_,
+				instance->selfAddress_, LOCAL_USABLE_PORT_START, true, false, clients_);
 		return instance;
 	}
 
@@ -99,21 +94,19 @@ public:
 	 * Not using unordered_map for clients because incompatibility between g++4.6 and g++4.9
 	 * now it's already been upgraded to g++4.9
 	 */
-	void Init(std::vector<std::string> ips, std::string selfAddress,
-			int localStartPort, bool fristTime) {
+	void Init(std::vector<std::string> ips, std::string selfAddress, int localStartPort,
+			bool fristTime) {
 		selfAddress_ = selfAddress;
 		ips_ = ips;
-		std::shared_ptr<zmq::context_t> context = std::make_shared<
-				zmq::context_t>(1);
+		std::shared_ptr<zmq::context_t> context = std::make_shared<zmq::context_t>(1);
 		for (auto it = ips.begin(); it != ips.end(); ++it) {
-			clients_[*it] = new DTranx::Client::Client(*it, DTRANX_SERVER_PORT,
-					context);
+			clients_[*it] = new DTranx::Client::Client(*it, DTRANX_SERVER_PORT, context);
 			assert(clients_[*it]->Bind(selfAddress, localStartPort++));
 		}
 		if (fristTime) {
-			rtreeString = new RTreeString(false, "rtree.debug");
-			rtreeString->InitDTranxForRTree(DTRANX_SERVER_PORT, ips,
-					selfAddress, DTRANX_SERVER_PORT, true, true, clients_);
+			rtreeString = new RTreeString(false, "rtree.debug", poolCached);
+			rtreeString->InitDTranxForRTree(DTRANX_SERVER_PORT, ips, selfAddress,
+					DTRANX_SERVER_PORT, true, true, clients_);
 		}
 	}
 
@@ -135,6 +128,10 @@ public:
 	}
 
 	int Update() {
+		RTree::Core::StringDataType deleteData;
+		Vec3 min, max;
+		GenerateObject(&min, &max);
+		rtreeString->Remove(min.v, max.v, deleteData);
 		return kOK;
 	}
 
@@ -162,10 +159,6 @@ private:
 		}
 		return floatSeed->Next();
 	}
-
-	std::unordered_map<std::string, DTranx::Client::Client*> clients_;
-	std::vector<std::string> ips_;
-	std::string selfAddress_;
 	RTreeString *rtreeString;
 	std::unordered_map<std::pair<float, float>, Util::RandFloatSeed*, Util::PairHash<float, float>> randFloatSeeds;
 };

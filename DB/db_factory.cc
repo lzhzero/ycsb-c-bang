@@ -20,7 +20,8 @@
 namespace Ycsb {
 namespace DB {
 
-DB_BASE* DBFactory::CreateDB(const std::string name) {
+DB_BASE* DBFactory::CreateDB(Ycsb::Core::Properties &props) {
+	std::string name = props.GetProperty("dbname");
 	if (name == "basic") {
 		return new BasicDB;
 	} else if (name == "lock_stl") {
@@ -36,7 +37,7 @@ DB_BASE* DBFactory::CreateDB(const std::string name) {
 	} else if (name == "btree") {
 		return new BtreeDB;
 	} else if (name == "rtree") {
-		return new RtreeDB;
+		return new RtreeDB(props);
 	} else
 		return NULL;
 }

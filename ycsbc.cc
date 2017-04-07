@@ -26,6 +26,18 @@ using namespace std;
 //aggregate throughput during the previous 20 seconds
 int ONLINE_THROUGHPUT_TIME = 1000000;
 
+/*
+ * after STABLE_AFTER_NUM_TRANX and before STABLE_BEFORE_NUM_TRANX tranx for each thread, ycsb starts
+ * to calculate the statistics for the latency
+ *
+ * STABLE_AFTER_NUM_TRANX is decided by how much time to populate the cache and the difference among clients
+ * STABLE_BEFORE_NUM_TRANX is decided by the difference among clients
+ *
+ * This is implemented for cache effect, it should be dynamically adjusted based on the database
+ */
+int STABLE_AFTER_NUM_TRANX = 30000;
+int STABLE_BEFORE_NUM_TRANX = 50000;
+
 void UsageMessage(const char *command);
 bool StrStartWith(const char *str, const char *pre);
 string ParseCommandLine(int argc, const char *argv[], Ycsb::Core::Properties &props);
@@ -66,7 +78,14 @@ void DelegateClient(DBData *dbData, Ycsb::Core::Properties *props, const int num
 		Ycsb::DB::KVDB *kvdb = dbData->kvdb->GetDBInstance(index);
 		Ycsb::Client client(dbData->tabledb, kvdb, wl);
 		boost::chrono::steady_clock::time_point start = boost::chrono::steady_clock::now();
+		boost::chrono::steady_clock::time_point end;
 		for (int i = 0; i < num_ops; ++i) {
+			if (i == STABLE_AFTER_NUM_TRANX) {
+				start = boost::chrono::steady_clock::now();
+			}
+			if(i == STABLE_BEFORE_NUM_TRANX) {
+				end = boost::chrono::steady_clock::now();
+			}
 			if (is_loading) {
 				if (client.DoInsert()) {
 					sum_succ->operator ++();
@@ -78,10 +97,9 @@ void DelegateClient(DBData *dbData, Ycsb::Core::Properties *props, const int num
 			}
 			sum->operator ++();
 		}
-		boost::chrono::steady_clock::time_point end = boost::chrono::steady_clock::now();
 		uint64_t timeElapsed = boost::chrono::duration_cast<boost::chrono::microseconds>(
 				end - start).count();
-		*avgLatency = timeElapsed * 1.0 / num_ops;
+		*avgLatency = timeElapsed * 1.0 / (STABLE_BEFORE_NUM_TRANX - STABLE_AFTER_NUM_TRANX);
 		dbData->kvdb->DestroyDBInstance(kvdb);
 		return;
 	}
@@ -122,7 +140,7 @@ int main(const int argc, const char *argv[]) {
 		}
 	}
 	if (dbData.isKV) {
-		dbData.kvdb = dynamic_cast<Ycsb::DB::KVDB*>(Ycsb::DB::DBFactory::CreateDB(props["dbname"]));
+		dbData.kvdb = dynamic_cast<Ycsb::DB::KVDB*>(Ycsb::DB::DBFactory::CreateDB(props));
 		/*
 		 * port usage is somewhat static and no need to add configuration file
 		 * for ycsb program
@@ -130,8 +148,7 @@ int main(const int argc, const char *argv[]) {
 		dbData.kvdb->Init(dbData.ips, props["selfAddress"], LOCAL_USABLE_PORT_START,
 				std::stoi(props["firsttime"]) != 0);
 	} else {
-		dbData.tabledb = dynamic_cast<Ycsb::DB::TableDB*>(Ycsb::DB::DBFactory::CreateDB(
-				props["dbname"]));
+		dbData.tabledb = dynamic_cast<Ycsb::DB::TableDB*>(Ycsb::DB::DBFactory::CreateDB(props));
 	}
 	Ycsb::Core::CoreWorkload wl;
 	wl.Init(props);
@@ -232,10 +249,25 @@ int main(const int argc, const char *argv[]) {
 	int prev = 0;
 	std::chrono::system_clock::time_point start = std::chrono::system_clock::now();
 	std::chrono::system_clock::time_point end;
-	while (sum < total_ops * 0.8) {
+	double duration;
+	bool iSTimerRestartedAfterStable = false;
+	bool iSTimeEndedBeforeInStable = false;
+	int numOfTranxBeforeStable;
+	int numOfTranxBeforeInstable;
+	while (sum < total_ops * 0.98) {
 		sum = 0;
 		for (int i = 0; i < num_threads; ++i) {
 			sum += sums[i].load();
+		}
+		if (!iSTimerRestartedAfterStable && sum > num_threads * STABLE_AFTER_NUM_TRANX) {
+			iSTimerRestartedAfterStable = true;
+			numOfTranxBeforeStable = sum;
+			timer.Restart();
+		}
+		if(iSTimerRestartedAfterStable && !iSTimeEndedBeforeInStable && sum > num_threads * STABLE_BEFORE_NUM_TRANX){
+			iSTimeEndedBeforeInStable = true;
+			duration = timer.End();
+			numOfTranxBeforeInstable = sum;
 		}
 		time_t t = time(0);   // get time now
 		struct tm * now = localtime(&t);
@@ -271,11 +303,10 @@ int main(const int argc, const char *argv[]) {
 		numOfLatencies++;
 	}
 	avg_latency = avg_latency / numOfLatencies;
-
-	double duration = timer.End();
+	double succ_rate = 1.0 * sum_succ / total_ops;
 	cerr << "# Transaction throughput (KTPS)" << endl;
 	cerr << props["dbname"] << '\t' << file_name << '\t' << num_threads << '\t';
-	cerr << sum_succ / duration / 1000 << endl;
+	cerr << (numOfTranxBeforeInstable - numOfTranxBeforeStable) * succ_rate / duration / 1000 << endl;
 	cerr << "total_ops: " << total_ops << ", success: " << sum_succ << ", percentage: "
 			<< 1.0 * sum_succ / total_ops << endl;
 	cerr << "avg_latency: " << avg_latency << " microseconds" << endl;
@@ -320,6 +351,14 @@ string ParseCommandLine(int argc, const char *argv[], Ycsb::Core::Properties &pr
 				exit(0);
 			}
 			props.SetProperty("dbname", argv[argindex]);
+			argindex++;
+		} else if (strcmp(argv[argindex], "-m") == 0) {
+			argindex++;
+			if (argindex >= argc) {
+				UsageMessage(argv[0]);
+				exit(0);
+			}
+			props.SetProperty("mempool", argv[argindex]);
 			argindex++;
 		} else if (strcmp(argv[argindex], "-C") == 0) {
 			argindex++;
@@ -372,8 +411,11 @@ void UsageMessage(const char *command) {
 	cout << "Options:" << endl;
 	cout << "  -genwork n: if n equals 1, generate keys to a file named genwork.data (default: 0)"
 			<< endl;
-	cout << "  -threads n: execute using n threads (default: 1)" << endl;
-	cout << "  -db dbname: specify the name of the DB to use (default: basic)" << endl;
+	cout << "  -threads n: execute using n threads" << endl;
+	cout << "  -db dbname: specify the name of the DB to use" << endl;
+	cout
+			<< "  -m poolcached: whether to enable mempool for ddsbrick data structures (options:0,1, default: 1 meaning enable)"
+			<< endl;
 	cout
 			<< "  -i firsttime: specify if this is the first time to run against the database, for btree/rtree usage"
 			<< "0 means no, anything else is yes" << endl;

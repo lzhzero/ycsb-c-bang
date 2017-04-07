@@ -13,25 +13,29 @@
 
 namespace Util {
 
-template <typename T>
+template<typename T>
 class Timer {
- public:
-  void Start() {
-    time_ = Clock::now();
-  }
+public:
+	void Start() {
+		time_ = Clock::now();
+	}
 
-  T End() {
-    Duration span;
-    Clock::time_point t = Clock::now();
-    span = std::chrono::duration_cast<Duration>(t - time_);
-    return span.count();
-  }
+	void Restart() {
+		Start();
+	}
 
- private:
-  typedef std::chrono::high_resolution_clock Clock;
-  typedef std::chrono::duration<T> Duration;
+	T End() {
+		Duration span;
+		Clock::time_point t = Clock::now();
+		span = std::chrono::duration_cast<Duration>(t - time_);
+		return span.count();
+	}
 
-  Clock::time_point time_;
+private:
+	typedef std::chrono::high_resolution_clock Clock;
+	typedef std::chrono::duration<T> Duration;
+
+	Clock::time_point time_;
 };
 
 } // Util

@@ -35,8 +35,8 @@ public:
 	 * 		might use several ports
 	 * 	@firstTime means if the database is empty or not.
 	 */
-	virtual void Init(std::vector<std::string> ips, std::string selfAddress,
-			int localStartPort, bool fristTime = false) = 0;
+	virtual void Init(std::vector<std::string> ips, std::string selfAddress, int localStartPort,
+			bool fristTime = false) = 0;
 	virtual void Close() = 0;
 	/*
 	 * Reads a record from the database.
@@ -70,13 +70,11 @@ public:
 	 * @param writes, writeset
 	 * @return Zero on success, a non-zero error code on error.
 	 */
-	virtual int ReadWrite(std::vector<std::string> reads,
-			std::vector<KVPair> writes) {
+	virtual int ReadWrite(std::vector<std::string> reads, std::vector<KVPair> writes) {
 		return kOK;
 	}
 
-	virtual int ReadWrite(std::vector<uint64_t> reads,
-			std::vector<KVPairInt> writes) {
+	virtual int ReadWrite(std::vector<uint64_t> reads, std::vector<KVPairInt> writes) {
 		return kOK;
 	}
 
@@ -103,6 +101,10 @@ public:
 		return kOK;
 	}
 
+	/*
+	 * Update is used as Remove a record for BTree and RTree
+	 */
+
 	virtual int Update(std::vector<KVPair> writes) {
 		return kOK;
 	}
@@ -113,6 +115,15 @@ public:
 
 	virtual int Update() {
 		return kOK;
+	}
+
+	KVDB(){
+
+	}
+
+	KVDB(const KVDB &other) {
+		keyType = other.keyType;
+		shareDB = other.shareDB;
 	}
 
 	virtual ~KVDB() {

@@ -7,7 +7,7 @@
 #ifndef YCSB_C_BTREE_DB_H_
 #define YCSB_C_BTREE_DB_H_
 
-#include "kvdb.h"
+#include "ddsbrick.h"
 #include "BTree/Core/BTreeTemplate.h"
 #include "DB/commons.h"
 
@@ -18,25 +18,20 @@ using std::endl;
 typedef BTree::Core::BTreeTemplate<uint64_t> BTreeInt;
 
 namespace DB {
-class BtreeDB: public KVDB {
+class BtreeDB: public DDSBrick {
 public:
 	BtreeDB() {
 		/*
 		 * btreedb is created for each thread to avoid metadata reading/writing
 		 */
 		btreeInt = NULL;
-		shareDB = false;
 		keyType = KeyType::INTEGER;
 	}
 
-	BtreeDB(const BtreeDB& other) {
+	BtreeDB(const BtreeDB& other)
+			: DDSBrick(other) {
 		std::cout << "btree copy constructor is called" << std::endl;
-		ips_ = other.ips_;
-		selfAddress_ = other.selfAddress_;
-		clients_ = other.clients_;
 		btreeInt = other.btreeInt;
-		keyType = other.keyType;
-		shareDB = other.shareDB;
 	}
 
 	~BtreeDB() {
@@ -48,11 +43,9 @@ public:
 	KVDB* Clone(int index) {
 		BtreeDB* instance = new BtreeDB(*this);
 		std::cout << "Cloning BTree called" << std::endl;
-		instance->btreeInt = new BTreeInt(false,
-				"btree.debug" + std::to_string(index));
-		instance->btreeInt->InitDTranxForBTree(DTRANX_SERVER_PORT,
-				instance->ips_, instance->selfAddress_, LOCAL_USABLE_PORT_START,
-				true, false, clients_);
+		instance->btreeInt = new BTreeInt(false, "btree.debug" + std::to_string(index));
+		instance->btreeInt->InitDTranxForBTree(DTRANX_SERVER_PORT, instance->ips_,
+				instance->selfAddress_, LOCAL_USABLE_PORT_START, true, false, clients_);
 		return instance;
 	}
 
@@ -60,21 +53,19 @@ public:
 	 * Not using unordered_map for clients because incompatibility between g++4.6 and g++4.9
 	 * now it's already been upgraded to g++4.9
 	 */
-	void Init(std::vector<std::string> ips, std::string selfAddress,
-			int localStartPort, bool fristTime) {
+	void Init(std::vector<std::string> ips, std::string selfAddress, int localStartPort,
+			bool fristTime) {
 		selfAddress_ = selfAddress;
 		ips_ = ips;
-		std::shared_ptr<zmq::context_t> context = std::make_shared<
-				zmq::context_t>(1);
+		std::shared_ptr<zmq::context_t> context = std::make_shared<zmq::context_t>(1);
 		for (auto it = ips.begin(); it != ips.end(); ++it) {
-			clients_[*it] = new DTranx::Client::Client(*it, DTRANX_SERVER_PORT,
-					context);
+			clients_[*it] = new DTranx::Client::Client(*it, DTRANX_SERVER_PORT, context);
 			assert(clients_[*it]->Bind(selfAddress, localStartPort++));
 		}
 		if (fristTime) {
 			btreeInt = new BTreeInt(false);
-			btreeInt->InitDTranxForBTree(DTRANX_SERVER_PORT, ips, selfAddress,
-					DTRANX_SERVER_PORT, true, true, clients_);
+			btreeInt->InitDTranxForBTree(DTRANX_SERVER_PORT, ips, selfAddress, DTRANX_SERVER_PORT,
+					true, true, clients_);
 		}
 	}
 
@@ -96,6 +87,8 @@ public:
 	}
 
 	int Update(std::vector<KVPairInt> writes) {
+		assert(!writes.empty());
+		btreeInt->erase_unique(writes[0].first);
 		return kOK;
 	}
 
@@ -111,9 +104,6 @@ public:
 	}
 
 private:
-	std::unordered_map<std::string, DTranx::Client::Client*> clients_;
-	std::vector<std::string> ips_;
-	std::string selfAddress_;
 	BTreeInt *btreeInt;
 };
 } // DB
