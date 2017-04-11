@@ -35,8 +35,12 @@ int ONLINE_THROUGHPUT_TIME = 1000000;
  *
  * This is implemented for cache effect, it should be dynamically adjusted based on the database
  */
-int STABLE_AFTER_NUM_TRANX = 30000;
-int STABLE_BEFORE_NUM_TRANX = 50000;
+int STABLE_AFTER_NUM_TRANX_NORMAL = 30000;
+int STABLE_BEFORE_NUM_TRANX_NORMAL = 50000;
+int STABLE_AFTER_NUM_TRANX_SNAPSHOT = 10000;
+int STABLE_BEFORE_NUM_TRANX_SNAPSHOT = 30000;
+int STABLE_AFTER_NUM_TRANX = STABLE_AFTER_NUM_TRANX_NORMAL;
+int STABLE_BEFORE_NUM_TRANX = STABLE_BEFORE_NUM_TRANX_NORMAL;
 
 void UsageMessage(const char *command);
 bool StrStartWith(const char *str, const char *pre);
@@ -68,7 +72,6 @@ void DelegateClient(DBData *dbData, Ycsb::Core::Properties *props, const int num
 	//kvdb->Init(dbData->ips);
 	Ycsb::Core::CoreWorkload wl;
 	wl.Init(*props);
-
 	if (dbData->isKV) {
 		assert(dbData->kvdb != NULL);
 	} else {
@@ -83,7 +86,7 @@ void DelegateClient(DBData *dbData, Ycsb::Core::Properties *props, const int num
 			if (i == STABLE_AFTER_NUM_TRANX) {
 				start = boost::chrono::steady_clock::now();
 			}
-			if(i == STABLE_BEFORE_NUM_TRANX) {
+			if (i == STABLE_BEFORE_NUM_TRANX) {
 				end = boost::chrono::steady_clock::now();
 			}
 			if (is_loading) {
@@ -139,8 +142,16 @@ int main(const int argc, const char *argv[]) {
 			dbData.ips.push_back(ip);
 		}
 	}
+	Ycsb::Core::CoreWorkload wl;
+	wl.Init(props);
+	if (wl.IsSnapshot()) {
+		STABLE_AFTER_NUM_TRANX = STABLE_AFTER_NUM_TRANX_SNAPSHOT;
+		STABLE_BEFORE_NUM_TRANX = STABLE_BEFORE_NUM_TRANX_SNAPSHOT;
+	}
+
 	if (dbData.isKV) {
-		dbData.kvdb = dynamic_cast<Ycsb::DB::KVDB*>(Ycsb::DB::DBFactory::CreateDB(props));
+		dbData.kvdb = dynamic_cast<Ycsb::DB::KVDB*>(Ycsb::DB::DBFactory::CreateDB(
+				props.GetProperty("dbname"), wl));
 		/*
 		 * port usage is somewhat static and no need to add configuration file
 		 * for ycsb program
@@ -148,10 +159,9 @@ int main(const int argc, const char *argv[]) {
 		dbData.kvdb->Init(dbData.ips, props["selfAddress"], LOCAL_USABLE_PORT_START,
 				std::stoi(props["firsttime"]) != 0);
 	} else {
-		dbData.tabledb = dynamic_cast<Ycsb::DB::TableDB*>(Ycsb::DB::DBFactory::CreateDB(props));
+		dbData.tabledb = dynamic_cast<Ycsb::DB::TableDB*>(Ycsb::DB::DBFactory::CreateDB(
+				props.GetProperty("dbname"), wl));
 	}
-	Ycsb::Core::CoreWorkload wl;
-	wl.Init(props);
 
 	/*
 	 * generate a keys file if needed
@@ -264,7 +274,8 @@ int main(const int argc, const char *argv[]) {
 			numOfTranxBeforeStable = sum;
 			timer.Restart();
 		}
-		if(iSTimerRestartedAfterStable && !iSTimeEndedBeforeInStable && sum > num_threads * STABLE_BEFORE_NUM_TRANX){
+		if (iSTimerRestartedAfterStable && !iSTimeEndedBeforeInStable
+				&& sum > num_threads * STABLE_BEFORE_NUM_TRANX) {
 			iSTimeEndedBeforeInStable = true;
 			duration = timer.End();
 			numOfTranxBeforeInstable = sum;
@@ -306,14 +317,15 @@ int main(const int argc, const char *argv[]) {
 	double succ_rate = 1.0 * sum_succ / total_ops;
 	cerr << "# Transaction throughput (KTPS)" << endl;
 	cerr << props["dbname"] << '\t' << file_name << '\t' << num_threads << '\t';
-	cerr << (numOfTranxBeforeInstable - numOfTranxBeforeStable) * succ_rate / duration / 1000 << endl;
+	cerr << (numOfTranxBeforeInstable - numOfTranxBeforeStable) * succ_rate / duration / 1000
+			<< endl;
 	cerr << "total_ops: " << total_ops << ", success: " << sum_succ << ", percentage: "
 			<< 1.0 * sum_succ / total_ops << endl;
 	cerr << "avg_latency: " << avg_latency << " microseconds" << endl;
 	if (dbData.isKV) {
 		dbData.kvdb->Close();
 	}
-	//::ProfilerStop();
+//::ProfilerStop();
 }
 
 string ParseCommandLine(int argc, const char *argv[], Ycsb::Core::Properties &props) {

@@ -20,24 +20,23 @@
 namespace Ycsb {
 namespace DB {
 
-DB_BASE* DBFactory::CreateDB(Ycsb::Core::Properties &props) {
-	std::string name = props.GetProperty("dbname");
-	if (name == "basic") {
+DB_BASE* DBFactory::CreateDB(std::string dbname, Ycsb::Core::CoreWorkload &wl) {
+	if (dbname == "basic") {
 		return new BasicDB;
-	} else if (name == "lock_stl") {
+	} else if (dbname == "lock_stl") {
 		return new LockStlDB;
-	} else if (name == "tbb_rand") {
+	} else if (dbname == "tbb_rand") {
 		return new TbbRandDB;
-	} else if (name == "tbb_scan") {
+	} else if (dbname == "tbb_scan") {
 		return new TbbScanDB;
-	} else if (name == "dtranx") {
+	} else if (dbname == "dtranx") {
 		return new DtranxDB;
-	} else if (name == "hyperdex") {
+	} else if (dbname == "hyperdex") {
 		return new HyperdexDB;
-	} else if (name == "btree") {
-		return new BtreeDB;
-	} else if (name == "rtree") {
-		return new RtreeDB(props);
+	} else if (dbname == "btree") {
+		return new BtreeDB(wl);
+	} else if (dbname == "rtree") {
+		return new RtreeDB(wl);
 	} else
 		return NULL;
 }

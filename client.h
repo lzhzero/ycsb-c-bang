@@ -19,12 +19,12 @@ namespace Ycsb {
 class Client {
 public:
 
-	Client(Core::CoreWorkload &wl) :
-			db_(NULL), kv_db_(NULL), workload_(wl), isKV(false) {
+	Client(Core::CoreWorkload &wl)
+			: db_(NULL), kv_db_(NULL), workload_(wl), isKV(false) {
 	}
 
-	Client(DB::TableDB *db_, DB::KVDB *kv_db, Core::CoreWorkload &wl) :
-			db_(db_), kv_db_(kv_db), workload_(wl), isKV(false) {
+	Client(DB::TableDB *db_, DB::KVDB *kv_db, Core::CoreWorkload &wl)
+			: db_(db_), kv_db_(kv_db), workload_(wl), isKV(false) {
 		if (kv_db_) {
 			isKV = true;
 		}
@@ -55,12 +55,10 @@ protected:
 inline bool Client::DoInsert() {
 	if (isKV) {
 		if (kv_db_->GetKeyType() == DB::KVDB::KeyType::STRING) {
-			std::vector<DB::DB_BASE::KVPair> kvs =
-					workload_.NextTransactionKVs();
+			std::vector<DB::DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
 			return kv_db_->Insert(kvs) == DB::DB_BASE::kOK;
 		} else if (kv_db_->GetKeyType() == DB::KVDB::KeyType::INTEGER) {
-			std::vector<DB::DB_BASE::KVPairInt> kvs =
-					workload_.NextTransactionKVsInt();
+			std::vector<DB::DB_BASE::KVPairInt> kvs = workload_.NextTransactionKVsInt();
 			return kv_db_->Insert(kvs) == DB::DB_BASE::kOK;
 		} else {
 			return kv_db_->Insert() == DB::DB_BASE::kOK;
@@ -138,8 +136,17 @@ inline int Client::TransactionRead() {
  */
 inline int Client::TransactionSnapshotRead() {
 	assert(kv_db_ != NULL);
-	std::vector<std::string> keys = workload_.NextTransactionKeys();
-	return kv_db_->ReadSnapshot(keys);
+
+	if (kv_db_->GetKeyType() == DB::KVDB::KeyType::STRING) {
+		std::vector<std::string> keys = workload_.NextTransactionKeys();
+		return kv_db_->ReadSnapshot(keys);
+	} else if (kv_db_->GetKeyType() == DB::KVDB::KeyType::INTEGER) {
+		std::vector<uint64_t> keys = workload_.NextTransactionKeysInt();
+		return kv_db_->ReadSnapshot(keys);
+	} else {
+		std::vector<uint64_t> keys;
+		return kv_db_->ReadSnapshot();
+	}
 }
 
 /*
@@ -151,16 +158,14 @@ inline int Client::TransactionReadModifyWrite() {
 		if (kv_db_->GetKeyType() == DB::KVDB::KeyType::STRING) {
 			std::vector<std::string> keys = workload_.NextTransactionKeys();
 			keys.pop_back();
-			std::vector<DB::DB_BASE::KVPair> kvs =
-					workload_.NextTransactionKVs();
+			std::vector<DB::DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
 			std::vector<DB::DB_BASE::KVPair> kvs_filter;
 			kvs_filter.push_back(kvs[0]);
 			return kv_db_->ReadWrite(keys, kvs_filter);
 		} else if (kv_db_->GetKeyType() == DB::KVDB::KeyType::INTEGER) {
 			std::vector<uint64_t> keys = workload_.NextTransactionKeysInt();
 			keys.pop_back();
-			std::vector<DB::DB_BASE::KVPairInt> kvs =
-					workload_.NextTransactionKVsInt();
+			std::vector<DB::DB_BASE::KVPairInt> kvs = workload_.NextTransactionKVsInt();
 			std::vector<DB::DB_BASE::KVPairInt> kvs_filter;
 			kvs_filter.push_back(kvs[0]);
 			return kv_db_->ReadWrite(keys, kvs_filter);
@@ -216,12 +221,10 @@ inline int Client::TransactionUpdate() {
 	if (isKV) {
 		assert(kv_db_ != NULL);
 		if (kv_db_->GetKeyType() == DB::KVDB::KeyType::STRING) {
-			std::vector<DB::DB_BASE::KVPair> kvs =
-					workload_.NextTransactionKVs();
+			std::vector<DB::DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
 			return kv_db_->Update(kvs);
 		} else if (kv_db_->GetKeyType() == DB::KVDB::KeyType::INTEGER) {
-			std::vector<DB::DB_BASE::KVPairInt> kvs =
-					workload_.NextTransactionKVsInt();
+			std::vector<DB::DB_BASE::KVPairInt> kvs = workload_.NextTransactionKVsInt();
 			return kv_db_->Update(kvs);
 		} else {
 			return kv_db_->Update();
@@ -247,12 +250,10 @@ inline int Client::TransactionInsert() {
 	if (isKV) {
 		assert(kv_db_ != NULL);
 		if (kv_db_->GetKeyType() == DB::KVDB::KeyType::STRING) {
-			std::vector<DB::DB_BASE::KVPair> kvs =
-					workload_.NextTransactionKVs();
+			std::vector<DB::DB_BASE::KVPair> kvs = workload_.NextTransactionKVs();
 			return kv_db_->Insert(kvs);
 		} else if (kv_db_->GetKeyType() == DB::KVDB::KeyType::INTEGER) {
-			std::vector<DB::DB_BASE::KVPairInt> kvs =
-					workload_.NextTransactionKVsInt();
+			std::vector<DB::DB_BASE::KVPairInt> kvs = workload_.NextTransactionKVsInt();
 			return kv_db_->Insert(kvs);
 		} else {
 			return kv_db_->Insert();

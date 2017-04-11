@@ -160,6 +160,12 @@ public:
 	static const std::string KEY_GENERATOR_DEFAULT;
 
 	///
+	/// the name of the property whether mempool is enabled
+	///
+	static const std::string MEMPOOL_PROPERTY;
+	static const std::string MEMPOOL_DEFAULT;
+
+	///
 	/// Initialize the scenario.
 	/// Called once, in the main client thread, before any operations are started.
 	///
@@ -198,12 +204,15 @@ public:
 		return write_all_fields_;
 	}
 
-	CoreWorkload() :
-			field_count_(0), read_all_fields_(false), write_all_fields_(false), field_len_generator_(
+	bool UseMempoolCache() {
+		return useMempoolCache;
+	}
+
+	CoreWorkload()
+			: field_count_(0), read_all_fields_(false), write_all_fields_(false), field_len_generator_(
 			NULL), key_generator_(NULL), key_chooser_(NULL), keynum_chooser_(
-			NULL), field_chooser_(NULL), scan_len_chooser_(NULL), insert_key_sequence_(
-					3), ordered_inserts_(true), record_count_(0), max_key_count_(
-					3), max_key_value_(100) {
+			NULL), field_chooser_(NULL), scan_len_chooser_(NULL), insert_key_sequence_(3), ordered_inserts_(
+					true), record_count_(0), max_key_count_(3), max_key_value_(100) {
 	}
 
 	virtual ~CoreWorkload() {
@@ -225,8 +234,7 @@ public:
 	}
 
 protected:
-	static Generator<uint64_t> *GetFieldLenGenerator(
-			const Properties &p);
+	static Generator<uint64_t> *GetFieldLenGenerator(const Properties &p);
 	std::string BuildKeyName(uint64_t key_num);
 
 	std::string table_name_;
@@ -252,6 +260,8 @@ protected:
 	bool isSnapshot;
 	std::string key_generator;
 	std::ifstream keyFile;
+
+	bool useMempoolCache;
 };
 
 inline size_t CoreWorkload::GetMaxKeyCount() {
@@ -324,8 +334,7 @@ inline std::vector<DB::DB_BASE::KVPair> CoreWorkload::NextTransactionKVs() {
 	for (size_t i = 1; i <= num; ++i) {
 		result.push_back(
 				DB::DB_BASE::KVPair(NextTransactionKey(),
-						std::string(field_len_generator_->Next(),
-								Util::RandomPrintChar())));
+						std::string(field_len_generator_->Next(), Util::RandomPrintChar())));
 	}
 	return result;
 }
@@ -336,8 +345,7 @@ inline std::vector<DB::DB_BASE::KVPairInt> CoreWorkload::NextTransactionKVsInt()
 	for (size_t i = 1; i <= num; ++i) {
 		result.push_back(
 				DB::DB_BASE::KVPairInt(NextTransactionKeyInt(),
-						std::string(field_len_generator_->Next(),
-								Util::RandomPrintChar())));
+						std::string(field_len_generator_->Next(), Util::RandomPrintChar())));
 	}
 	return result;
 }

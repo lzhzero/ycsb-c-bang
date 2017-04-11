@@ -57,14 +57,17 @@ private:
 		*max = *min + extent;
 	}
 public:
-	RtreeDB(Ycsb::Core::Properties &props) {
+	RtreeDB(Ycsb::Core::CoreWorkload &wl) {
 		/*
 		 * rtreedb is created for each thread to avoid metadata reading/writing
 		 */
 		rtreeString = NULL;
 		keyType = KeyType::CUSTOMIZE;
-		if (props.GetProperty("mempool") == "0") {
+		if (!wl.UseMempoolCache()) {
 			DisablePoolCache();
+		}
+		if (wl.IsSnapshot()) {
+			SetSnapshot();
 		}
 	}
 
@@ -86,7 +89,8 @@ public:
 		instance->rtreeString = new RTreeString(false, "rtree.debug" + std::to_string(index),
 				poolCached);
 		instance->rtreeString->InitDTranxForRTree(DTRANX_SERVER_PORT, instance->ips_,
-				instance->selfAddress_, LOCAL_USABLE_PORT_START, true, false, clients_);
+				instance->selfAddress_, LOCAL_USABLE_PORT_START, true, false, snapshotTranx,
+				clients_);
 		return instance;
 	}
 
@@ -106,7 +110,7 @@ public:
 		if (fristTime) {
 			rtreeString = new RTreeString(false, "rtree.debug", poolCached);
 			rtreeString->InitDTranxForRTree(DTRANX_SERVER_PORT, ips, selfAddress,
-					DTRANX_SERVER_PORT, true, true, clients_);
+					DTRANX_SERVER_PORT, true, true, snapshotTranx, clients_);
 		}
 	}
 
@@ -123,7 +127,10 @@ public:
 		return kOK;
 	}
 
-	int ReadSnapshot(std::vector<uint64_t> keys) {
+	int ReadSnapshot() {
+		Vec3 min, max;
+		GenerateObject(&min, &max);
+		rtreeString->Search(min.v, max.v, &QueryResultCallback, NULL);
 		return kOK;
 	}
 

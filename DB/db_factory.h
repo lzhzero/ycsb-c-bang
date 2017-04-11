@@ -10,14 +10,14 @@
 #define YCSB_C_DB_FACTORY_H_
 
 #include "db_base.h"
-#include "Core/properties.h"
+#include "Core/core_workload.h"
 
 namespace Ycsb {
 namespace DB {
 
 class DBFactory {
  public:
-  static DB_BASE* CreateDB(Ycsb::Core::Properties &props);
+  static DB_BASE* CreateDB(std::string dbname, Ycsb::Core::CoreWorkload &wl);
 };
 } // DB
 } // Ycsb

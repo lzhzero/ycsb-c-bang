@@ -20,12 +20,18 @@ typedef BTree::Core::BTreeTemplate<uint64_t> BTreeInt;
 namespace DB {
 class BtreeDB: public DDSBrick {
 public:
-	BtreeDB() {
+	BtreeDB(Ycsb::Core::CoreWorkload &wl) {
 		/*
 		 * btreedb is created for each thread to avoid metadata reading/writing
 		 */
 		btreeInt = NULL;
 		keyType = KeyType::INTEGER;
+		if (!wl.UseMempoolCache()) {
+			DisablePoolCache();
+		}
+		if (wl.IsSnapshot()) {
+			SetSnapshot();
+		}
 	}
 
 	BtreeDB(const BtreeDB& other)
@@ -43,9 +49,10 @@ public:
 	KVDB* Clone(int index) {
 		BtreeDB* instance = new BtreeDB(*this);
 		std::cout << "Cloning BTree called" << std::endl;
-		instance->btreeInt = new BTreeInt(false, "btree.debug" + std::to_string(index));
+		instance->btreeInt = new BTreeInt(false, "btree.debug" + std::to_string(index), poolCached);
 		instance->btreeInt->InitDTranxForBTree(DTRANX_SERVER_PORT, instance->ips_,
-				instance->selfAddress_, LOCAL_USABLE_PORT_START, true, false, clients_);
+				instance->selfAddress_, LOCAL_USABLE_PORT_START, true, false, snapshotTranx,
+				clients_);
 		return instance;
 	}
 
@@ -63,9 +70,9 @@ public:
 			assert(clients_[*it]->Bind(selfAddress, localStartPort++));
 		}
 		if (fristTime) {
-			btreeInt = new BTreeInt(false);
+			btreeInt = new BTreeInt(false, "btree.debug", poolCached);
 			btreeInt->InitDTranxForBTree(DTRANX_SERVER_PORT, ips, selfAddress, DTRANX_SERVER_PORT,
-					true, true, clients_);
+					true, true, snapshotTranx, clients_);
 		}
 	}
 
@@ -83,6 +90,9 @@ public:
 	}
 
 	int ReadSnapshot(std::vector<uint64_t> keys) {
+		std::string value;
+		assert(!keys.empty());
+		btreeInt->find_unique(keys[0]);
 		return kOK;
 	}
 

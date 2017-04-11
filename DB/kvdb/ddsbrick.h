@@ -18,6 +18,7 @@ public:
 	DDSBrick() {
 		shareDB = false;
 		poolCached = true;
+		snapshotTranx = false;
 	}
 
 	DDSBrick(const DDSBrick& other)
@@ -26,6 +27,7 @@ public:
 		selfAddress_ = other.selfAddress_;
 		clients_ = other.clients_;
 		poolCached = other.poolCached;
+		snapshotTranx = other.snapshotTranx;
 	}
 
 	virtual ~DDSBrick() {
@@ -39,11 +41,16 @@ public:
 		poolCached = false;
 	}
 
+	void SetSnapshot() {
+		snapshotTranx = true;
+	}
+
 protected:
 	/*
 	 * poolCached means whether RTree enables the de-serialized mempool cache
 	 */
 	bool poolCached;
+	bool snapshotTranx;
 
 	std::unordered_map<std::string, DTranx::Client::Client*> clients_;
 	std::vector<std::string> ips_;

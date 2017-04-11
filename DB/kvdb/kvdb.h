@@ -62,6 +62,10 @@ public:
 		return kOK;
 	}
 
+	virtual int ReadSnapshot() {
+		return kOK;
+	}
+
 	/*
 	 * 	ReadWrite a record in the database.
 	 * Field/value pairs in the specified vector are written to the record,
@@ -117,7 +121,7 @@ public:
 		return kOK;
 	}
 
-	KVDB(){
+	KVDB() {
 
 	}
 
