@@ -192,6 +192,7 @@ public:
 	virtual size_t NextScanLength() {
 		return scan_len_chooser_->Next();
 	}
+	size_t GetMaxKeyValue();
 	virtual size_t GetMaxKeyCount();
 	virtual bool IsSnapshot() {
 		return isSnapshot;
@@ -263,6 +264,10 @@ protected:
 
 	bool useMempoolCache;
 };
+
+inline size_t CoreWorkload::GetMaxKeyValue() {
+	return max_key_value_;
+}
 
 inline size_t CoreWorkload::GetMaxKeyCount() {
 	return max_key_count_;

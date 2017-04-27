@@ -15,7 +15,7 @@ namespace Ycsb {
 
 using std::cout;
 using std::endl;
-typedef BTree::Core::BTreeTemplate<uint64_t> BTreeInt;
+typedef BTree::Core::BTreeTemplate<uint64_t, 264> BTreeInt;
 
 namespace DB {
 class BtreeDB: public DDSBrick {
@@ -31,6 +31,7 @@ public:
 		}
 		if (wl.IsSnapshot()) {
 			SetSnapshot();
+			DisablePoolCache();
 		}
 	}
 

@@ -134,5 +134,7 @@ if args.subcommand == 'run':
 			print scp(True, "/home/neal/Documents/dev/YCSB-C-DTranx/workloads/workloadrtree.spec", RemoteUser, ip, "/users/nigo9731/")
 			print scp(True, "/home/neal/Documents/dev/Scripts/metric/monitor.sh", RemoteUser, ip, "/users/nigo9731/")
 			print scp(True, "/home/neal/Documents/dev/Scripts/metric/process.sh", RemoteUser, ip, "/users/nigo9731/")
+			print scp(True, "/home/neal/Documents/dev/DTranx/Build/Example/Tranx/CreateSnapshot", RemoteUser, ip, "/users/nigo9731/")
+			print scp(True, "/home/neal/Documents/dev/DTranx/Build/Example/Tranx/RunMetis", RemoteUser, ip, "/users/nigo9731/")
 			print scp(True, "localips", RemoteUser, ip, "/users/nigo9731/ips")
 		runBash("rm localips");

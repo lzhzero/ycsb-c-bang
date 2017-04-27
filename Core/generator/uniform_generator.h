@@ -26,8 +26,11 @@ public:
 	/*
 	 * Both min and max are inclusive
 	 */
-	UniformGenerator(uint64_t min, uint64_t max) :
-			generator_(random()), dist_(min, max) {
+	UniformGenerator(uint64_t min, uint64_t max)
+			: dist_(min, max) {
+		struct timespec now;
+		clock_gettime(CLOCK_MONOTONIC_RAW, &now);
+		generator_ = std::default_random_engine(now.tv_nsec);
 		Next();
 	}
 
@@ -40,7 +43,8 @@ public:
 
 private:
 	uint64_t last_int_;
-	std::mt19937_64 generator_;
+	//std::mt19937_64 generator_;
+	std::default_random_engine generator_;
 	std::uniform_int_distribution<uint64_t> dist_;
 };
 

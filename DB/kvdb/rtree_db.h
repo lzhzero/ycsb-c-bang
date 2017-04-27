@@ -18,18 +18,15 @@ using std::cout;
 using std::endl;
 typedef RTree::Core::RTree<RTree::Core::StringDataType, float, 3, float, 30, 5> RTreeString;
 
-/*
- * Generate workload based on MAX_WORLDSIZE and FRAC_WORLDSIZE
- * TODO: move the workload generation to core_workload class
- */
-const float MAX_WORLDSIZE = 100000000.0f;
-const float FRAC_WORLDSIZE = 10.0f;
-
 bool QueryResultCallback(RTree::Core::StringDataType a_data, void* a_context) {
 	return true;
 }
 
 namespace DB {
+/*
+ * Generate workload based on MAX_WORLDSIZE and FRAC_WORLDSIZE
+ */
+const float FRAC_WORLDSIZE = 10.0f;
 class RtreeDB: public DDSBrick {
 private:
 	struct Vec3 {
@@ -63,11 +60,13 @@ public:
 		 */
 		rtreeString = NULL;
 		keyType = KeyType::CUSTOMIZE;
+		MAX_WORLDSIZE = wl.GetMaxKeyValue();
 		if (!wl.UseMempoolCache()) {
 			DisablePoolCache();
 		}
 		if (wl.IsSnapshot()) {
 			SetSnapshot();
+			DisablePoolCache();
 		}
 	}
 
@@ -75,6 +74,7 @@ public:
 			: DDSBrick(other) {
 		std::cout << "rtree copy constructor is called" << std::endl;
 		rtreeString = other.rtreeString;
+		MAX_WORLDSIZE = other.MAX_WORLDSIZE;
 	}
 
 	~RtreeDB() {
@@ -156,7 +156,7 @@ public:
 
 private:
 
-	inline float RandomFloat(float min = 0.0, float max = 1.0) {
+	float RandomFloat(float min = 0.0, float max = 1.0) {
 		std::pair<float, float> range(min, max);
 		Util::RandFloatSeed* floatSeed = NULL;
 		if (randFloatSeeds.find(range) == randFloatSeeds.end()) {
@@ -168,6 +168,7 @@ private:
 	}
 	RTreeString *rtreeString;
 	std::unordered_map<std::pair<float, float>, Util::RandFloatSeed*, Util::PairHash<float, float>> randFloatSeeds;
+	float MAX_WORLDSIZE;
 };
 } // DB
 } // Ycsb

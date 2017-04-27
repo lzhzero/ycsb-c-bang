@@ -35,12 +35,8 @@ int ONLINE_THROUGHPUT_TIME = 1000000;
  *
  * This is implemented for cache effect, it should be dynamically adjusted based on the database
  */
-int STABLE_AFTER_NUM_TRANX_NORMAL = 30000;
-int STABLE_BEFORE_NUM_TRANX_NORMAL = 50000;
-int STABLE_AFTER_NUM_TRANX_SNAPSHOT = 10000;
-int STABLE_BEFORE_NUM_TRANX_SNAPSHOT = 30000;
-int STABLE_AFTER_NUM_TRANX = STABLE_AFTER_NUM_TRANX_NORMAL;
-int STABLE_BEFORE_NUM_TRANX = STABLE_BEFORE_NUM_TRANX_NORMAL;
+int STABLE_AFTER_NUM_TRANX;
+int STABLE_BEFORE_NUM_TRANX;
 
 void UsageMessage(const char *command);
 bool StrStartWith(const char *str, const char *pre);
@@ -144,11 +140,8 @@ int main(const int argc, const char *argv[]) {
 	}
 	Ycsb::Core::CoreWorkload wl;
 	wl.Init(props);
-	if (wl.IsSnapshot()) {
-		STABLE_AFTER_NUM_TRANX = STABLE_AFTER_NUM_TRANX_SNAPSHOT;
-		STABLE_BEFORE_NUM_TRANX = STABLE_BEFORE_NUM_TRANX_SNAPSHOT;
-	}
-
+	STABLE_AFTER_NUM_TRANX = stoi(props.GetProperty("stablestart", "1"));
+	STABLE_BEFORE_NUM_TRANX = stoi(props.GetProperty("stableend", "2"));
 	if (dbData.isKV) {
 		dbData.kvdb = dynamic_cast<Ycsb::DB::KVDB*>(Ycsb::DB::DBFactory::CreateDB(
 				props.GetProperty("dbname"), wl));
@@ -325,7 +318,7 @@ int main(const int argc, const char *argv[]) {
 	if (dbData.isKV) {
 		dbData.kvdb->Close();
 	}
-//::ProfilerStop();
+	//::ProfilerStop();
 }
 
 string ParseCommandLine(int argc, const char *argv[], Ycsb::Core::Properties &props) {
@@ -388,6 +381,22 @@ string ParseCommandLine(int argc, const char *argv[], Ycsb::Core::Properties &pr
 			}
 			props.SetProperty("firsttime", argv[argindex]);
 			argindex++;
+		} else if (strcmp(argv[argindex], "-s1") == 0) {
+			argindex++;
+			if (argindex >= argc) {
+				UsageMessage(argv[0]);
+				exit(0);
+			}
+			props.SetProperty("stablestart", argv[argindex]);
+			argindex++;
+		} else if (strcmp(argv[argindex], "-s2") == 0) {
+			argindex++;
+			if (argindex >= argc) {
+				UsageMessage(argv[0]);
+				exit(0);
+			}
+			props.SetProperty("stableend", argv[argindex]);
+			argindex++;
 		} else if (strcmp(argv[argindex], "-P") == 0) {
 			argindex++;
 			if (argindex >= argc) {
@@ -436,6 +445,8 @@ void UsageMessage(const char *command) {
 			<< endl;
 	cout << "  -s selfAddress: self address that clients bind to." << endl;
 	cout << "                   be specified, and will be processed in the order specified" << endl;
+	cout << "  -s1 stablestart" << endl;
+	cout << "  -s2 stableend" << endl;
 }
 
 inline bool StrStartWith(const char *str, const char *pre) {

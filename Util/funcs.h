@@ -57,7 +57,10 @@ struct RandFloatSeed {
 	std::uniform_real_distribution<float> uniform;
 
 	RandFloatSeed(float min, float max) :
-			generator(), uniform(min, max) {
+			uniform(min, max) {
+		struct timespec now;
+		clock_gettime(CLOCK_MONOTONIC_RAW, &now);
+		generator = std::default_random_engine(now.tv_nsec);
 	}
 
 	float Next(){
