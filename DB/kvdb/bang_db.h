@@ -16,7 +16,7 @@
 #define DTRANX_BANG_DB_H_
 
 #include <bangdb-client/database.h>
-#include "kvdb.h"
+//#include "kvdb.h"
 
 #include "DB/commons.h"
 namespace Ycsb {
@@ -25,19 +25,15 @@ namespace DB {
 
 class BangDB: public KVDB {
 public:
-    BangDB()
-            : client_() {
+    BangDB(){
         shareDB = false;
         keyType = KeyType::STRING;
-        tbl_ = NULL;
     }
 
     BangDB(const BangDB& other) {
         std::cout << "BangDB copy contructor is called" << std::endl;
         shareDB = other.shareDB;
         keyType = other.keyType;
-        client_ = NULL;
-        tbl_ = NULL;
     }
 
     ~BangDB() {
@@ -47,7 +43,8 @@ public:
     KVDB* Clone(int index) {
         BangDB *instance = new BangDB(*this);
         std::cout << "Cloning BangDB called" << std::endl;
-        instance->client_ = new bangdb_client::database((char*)"mydb", NULL, bangdb_client::DB_OPTIMISTIC_TRANSACTION, NULL, NULL);
+	bangdb_client::bangdbEnv dbenv;
+        instance->client_ = dbenv.openDatabase((char*)"mydb");
         bangdb_client::table_env tenv;
 
         //configure table properties
@@ -65,7 +62,8 @@ public:
 
     void Init(std::vector<std::string> ips, std::string selfAddress, int localStartPort,
             bool fristTime) {
-        client_ = new bangdb_client::database((char*)"mydb", NULL, bangdb_client::DB_OPTIMISTIC_TRANSACTION, NULL, NULL);
+	bangdb_client::bangdbEnv dbenv;
+        client_ = dbenv.openDatabase((char*)"mydb");
         bangdb_client::table_env tenv;
 
         //configure table properties
@@ -82,7 +80,9 @@ public:
 
     void Close() {
 	if (client_) {
+            delete tbl_;
             client_->closedatabase();
+            delete client_;
         }
     }
 
@@ -100,10 +100,6 @@ public:
         for (auto it = keys.begin(); it != keys.end(); ++it) {
 
         		bangdb_client::FDT ikey, *ival = NULL;
-			//key = it->c_str();
-			//lens = it->size();
-        		//ikey.data = key;
-			//ikey.length = lens;
 			ikey.data = (char*)it->c_str();
         		ikey.length = it->size();
 
@@ -123,7 +119,6 @@ public:
 
     int ReadSnapshot(std::vector<std::string> keys) {
         /*
-         * read snapshot is not supported by hyperdex yet
          */
         return kOK;
     }
